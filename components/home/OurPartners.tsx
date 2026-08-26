@@ -26,7 +26,14 @@ function PartnerCard({
     .toUpperCase();
 
   return (
-    <div className="flex flex-col items-center gap-1.5 w-[150px]">
+    <div
+      className="flex flex-col items-center gap-1.5 w-[150px]"
+      onClick={(e) => {
+        // Prevent any parent link/router handler from firing on click
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <div className="w-[150px] h-[110px] bg-white rounded-sm flex items-center justify-center overflow-hidden">
         {logo_url ? (
           <img
@@ -131,13 +138,18 @@ export function OurPartners() {
       .finally(() => setLoading(false));
   }, []);
 
-  const developers = partners.filter(
-    (p) => p.category?.toLowerCase() === "developer",
-  );
   const banks = partners.filter((p) => p.category?.toLowerCase() === "bank");
 
   return (
-    <section className="py-16 sm:py-20 " style={{ backgroundColor: "#8B1A1A" }}>
+    <section
+      className="py-16 sm:py-20 "
+      style={{ backgroundColor: "#8B1A1A" }}
+      onClick={(e) => {
+        // Belt-and-suspenders: block any ancestor link/router click handler
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <div className="max-w-5xl mx-auto px-6">
         {/* Main Header */}
 
@@ -146,7 +158,6 @@ export function OurPartners() {
             Could not load partners at this time.
           </p>
         )}
-
 
         {loading && <div className="my-12" />}
 
