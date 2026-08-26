@@ -25,6 +25,7 @@ type Message = {
   sender: SenderType;
   suggestions?: string[];
   properties?: Property[];
+  moreHref?: string;
 };
 type ChatPhase =
   | "welcome"
@@ -36,6 +37,11 @@ type ChatPhase =
 
 const CHAT_API = "/api/chat";
 const POLL_MS = 4000;
+
+// Where the "See more properties" card sends people when there are more
+// than 5 combined matches. Update this if your developer listings page
+// lives at a different route.
+const DEVELOPER_LISTINGS_PAGE = "/developer-properties";
 
 const CONTACT = {
   email: "ABMacalincag@alfimarealtyinc.com",
@@ -57,6 +63,7 @@ interface Property {
   area?: number;
   slug?: string;
   images?: { url: string }[];
+  source?: "agency" | "developer";
 }
 
 interface ContactFormState {
@@ -164,6 +171,96 @@ async function fetchProperties(
     }
   }
   return [];
+}
+
+// Same fallback strategy as fetchProperties, but against the developer
+// listings endpoint (/api/developers-properties).
+async function fetchDeveloperProperties(
+  params: Record<string, string>,
+): Promise<Property[]> {
+  const attempts: Record<string, string>[] = [];
+  attempts.push({ ...params });
+  if (params.city) {
+    const noCity = { ...params };
+    delete noCity.city;
+    attempts.push(noCity);
+  }
+  if (params.property_type) {
+    const noType = { ...params };
+    delete noType.property_type;
+    delete noType.city;
+    attempts.push(noType);
+  }
+  if (params.listing_type) {
+    const listingOnly = {
+      listing_type: params.listing_type,
+      per_page: params.per_page ?? "3",
+    };
+    attempts.push(listingOnly);
+  }
+  attempts.push({ per_page: params.per_page ?? "6" });
+  for (const attempt of attempts) {
+    try {
+      const qs = new URLSearchParams(attempt).toString();
+      const res = await fetch(`/api/developers-properties?${qs}`, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const list: Property[] = Array.isArray(data)
+        ? data
+        : (data.data ?? data.properties ?? data.items ?? []);
+      if (list.length > 0) return list;
+    } catch {
+      /* try next attempt */
+    }
+  }
+  return [];
+}
+
+// Fetches both agency properties and developer properties in parallel,
+// merges + dedupes them, and caps what's shown inline in the chat at 5.
+// If there were more than 5 combined matches, hasMore=true so the UI can
+// offer a "See more" link to the full developer listings page instead of
+// dumping everything into the chat window.
+async function fetchCombinedProperties(
+  params: Record<string, string>,
+): Promise<{ properties: Property[]; hasMore: boolean }> {
+  const fetchParams = { ...params, per_page: "6" };
+
+  const [agencyProps, devProps] = await Promise.all([
+    fetchProperties(fetchParams),
+    fetchDeveloperProperties(fetchParams),
+  ]);
+
+  const tagged: Property[] = [
+    ...agencyProps.map((p) => ({ ...p, source: "agency" as const })),
+    ...devProps.map((p) => ({ ...p, source: "developer" as const })),
+  ];
+
+  const seen = new Set<string>();
+  const merged: Property[] = [];
+  for (const p of tagged) {
+    const key = `${p.source}-${p.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(p);
+  }
+
+  const hasMore = merged.length > 5;
+  return { properties: merged.slice(0, 5), hasMore };
+}
+
+function buildDeveloperListingsUrl(intent: Intent): string {
+  const qp: Record<string, string> = {};
+  if (intent.listing_type) qp.listing_type = intent.listing_type;
+  if (intent.property_type) qp.property_type = intent.property_type;
+  if (intent.city) qp.city = intent.city;
+  if (intent.min_price) qp.min_price = intent.min_price;
+  if (intent.max_price) qp.max_price = intent.max_price;
+  const qs = new URLSearchParams(qp).toString();
+  return `${DEVELOPER_LISTINGS_PAGE}${qs ? `?${qs}` : ""}`;
 }
 
 function formatPrice(price: number, listingType: string): string {
@@ -380,14 +477,20 @@ function FormatText({ text }: { text: string }) {
   );
 }
 
-function PropertyCards({ properties }: { properties: Property[] }) {
+function PropertyCards({
+  properties,
+  moreHref,
+}: {
+  properties: Property[];
+  moreHref?: string;
+}) {
   if (!properties.length) return null;
 
   return (
     <div className="flex flex-col gap-2 mt-2 w-full max-w-[90%]">
-      {properties.slice(0, 3).map((p) => (
+      {properties.slice(0, 5).map((p) => (
         <a
-          key={p.id}
+          key={`${p.source ?? "agency"}-${p.id}`}
           href={p.slug ? `/properties/${p.slug}` : `/properties/${p.id}`}
           target="_blank"
           rel="noopener noreferrer"
@@ -402,9 +505,17 @@ function PropertyCards({ properties }: { properties: Property[] }) {
           )}
 
           <div className="px-3 py-2">
-            <p className="text-white text-xs font-semibold leading-tight line-clamp-2">
-              {p.title}
-            </p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-white text-xs font-semibold leading-tight line-clamp-2">
+                {p.title}
+              </p>
+              {p.source === "developer" && (
+                <span className="flex-shrink-0 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-violet-300 bg-violet-500/10 border border-violet-500/30 rounded-full px-1.5 py-0.5">
+                  <Building2 className="w-2.5 h-2.5" />
+                  Dev
+                </span>
+              )}
+            </div>
 
             <div className="flex items-center justify-between mt-1">
               <span className="text-red-400 text-xs font-bold">
@@ -429,6 +540,18 @@ function PropertyCards({ properties }: { properties: Property[] }) {
           </div>
         </a>
       ))}
+
+      {moreHref && (
+        <a
+          href={moreHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1.5 bg-red-600/10 border border-red-500/30 rounded-xl py-2.5 text-red-300 hover:bg-red-600/20 hover:text-white transition-all text-xs font-semibold"
+        >
+          See more properties
+          <ChevronRight className="w-3.5 h-3.5" />
+        </a>
+      )}
     </div>
   );
 }
@@ -718,10 +841,18 @@ export function Chatbot() {
     token: string | null,
     properties?: Property[],
     nameToSave?: string,
+    moreHref?: string,
   ) {
     setMessages((prev) => [
       ...prev,
-      { id: `bot-${Date.now()}`, text, sender: "bot", suggestions, properties },
+      {
+        id: `bot-${Date.now()}`,
+        text,
+        sender: "bot",
+        suggestions,
+        properties,
+        moreHref,
+      },
     ]);
     if (save) {
       const t = token ?? tokenRef.current ?? getToken(sessionUserIdRef.current);
@@ -995,7 +1126,7 @@ export function Chatbot() {
     if (intent.max_price) params.max_price = intent.max_price;
 
     try {
-      const properties = await fetchProperties(params);
+      const { properties, hasMore } = await fetchCombinedProperties(params);
       setTimeout(() => {
         if (properties.length > 0) {
           const foundType =
@@ -1018,8 +1149,15 @@ export function Chatbot() {
                 ? ` ₱${(parseInt(intent.min_price) / 1_000_000).toFixed(0)}M–₱${(parseInt(intent.max_price) / 1_000_000).toFixed(0)}M`
                 : "";
 
+          const moreHref = hasMore
+            ? buildDeveloperListingsUrl(intent)
+            : undefined;
+
           addLocalBotMsg(
-            `🏠 Here are some **${typeLabel} ${listLabel}${cityLabel}${budgetLabel}** for you:`,
+            `🏠 Here are some **${typeLabel} ${listLabel}${cityLabel}${budgetLabel}** for you` +
+              (hasMore
+                ? ` (showing our top 5 — tap below to see the rest):`
+                : `:`),
             withBack([
               "Browse all properties",
               "Schedule a viewing",
@@ -1028,6 +1166,8 @@ export function Chatbot() {
             true,
             token,
             properties,
+            undefined,
+            moreHref,
           );
         } else {
           addLocalBotMsg(
@@ -1305,7 +1445,10 @@ export function Chatbot() {
                       {msg.sender !== "user" &&
                         msg.properties &&
                         msg.properties.length > 0 && (
-                          <PropertyCards properties={msg.properties} />
+                          <PropertyCards
+                            properties={msg.properties}
+                            moreHref={msg.moreHref}
+                          />
                         )}
 
                       {msg.sender !== "user" &&
