@@ -403,7 +403,7 @@ function EstimatedPayments({
       </div>
 
       {/* Disclaimer */}
-      <p className="text-[11px] leading-relaxed text-white/60">
+      <p className="text-[11px] leading-relaxed text-white">
         Estimate only, based on {ASSUMED_INTEREST_RATE}% interest and a{" "}
         {ASSUMED_LOAN_TERM_YEARS}-yr term.
       </p>
@@ -4276,7 +4276,7 @@ export default function PropertyDetailsPage({
                               key={`${label}-${idx}`}
                               className="flex items-center gap-3 rounded-xl bg-muted/70 p-3.5 transition hover:bg-muted"
                             >
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white shadow-sm">
                                 ✓
                               </span>
 
@@ -4327,7 +4327,7 @@ export default function PropertyDetailsPage({
                                   key={`${label}-${idx + 5}`}
                                   className="flex items-center gap-3 rounded-xl bg-muted/70 p-3.5 transition hover:bg-muted"
                                 >
-                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white shadow-sm">
                                     ✓
                                   </span>
 
