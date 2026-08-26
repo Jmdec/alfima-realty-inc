@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   Check,
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
+  Search,
 } from "lucide-react";
 
 const MONTHS = [
@@ -38,15 +39,27 @@ const TIME_SLOTS = [
   "5:00 PM",
 ];
 
+// Max results shown per group in the search dropdown. Keeps the list snappy
+// even with 480+ total properties — the user narrows down by typing.
+const MAX_GROUP_RESULTS = 25;
+
+type PropertySource = "property" | "developer";
+
 interface PropertyOption {
   id: number | string;
   title: string;
   city?: string;
+  source: PropertySource;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Composite key so regular + developer properties can't collide on id.
+function optionKey(p: PropertyOption): string {
+  return `${p.source}:${p.id}`;
 }
 
 // ── Validation helpers ─────────────────────────────────────────────────────
@@ -91,6 +104,12 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
 
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [propsLoading, setPropsLoading] = useState(false);
+  const [propsError, setPropsError] = useState<string | null>(null);
+
+  // ── Property search combobox state ──
+  const [propSearch, setPropSearch] = useState("");
+  const [propDropdownOpen, setPropDropdownOpen] = useState(false);
+  const propDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
@@ -99,22 +118,92 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     };
   }, [isOpen]);
 
+  // Fetch both regular and developer properties in parallel, tagging each
+  // with its source so they can be grouped and de-duplicated by key.
   useEffect(() => {
     if (!isOpen || properties.length > 0) return;
     setPropsLoading(true);
-    fetch("/api/properties?per_page=100&sort=priority")
-      .then((r) => r.json())
-      .then((data) => {
-        const list: PropertyOption[] = (data.data ?? []).map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          city: p.city,
-        }));
-        setProperties(list);
+    setPropsError(null);
+
+    Promise.all([
+      fetch("/api/properties?per_page=100&sort=priority").then((r) => r.json()),
+      fetch("/api/developer-properties?per_page=100&sort=priority").then((r) =>
+        r.json(),
+      ),
+    ])
+      .then(([propsData, devData]) => {
+        const regular: PropertyOption[] = (propsData?.data ?? []).map(
+          (p: any) => ({
+            id: p.id,
+            title: p.title,
+            city: p.city,
+            source: "property" as const,
+          }),
+        );
+        const developer: PropertyOption[] = (devData?.data ?? []).map(
+          (p: any) => ({
+            id: p.id,
+            title: p.title,
+            city: p.city,
+            source: "developer" as const,
+          }),
+        );
+        setProperties([...regular, ...developer]);
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        setPropsError("Couldn't load properties. Please try again.");
+      })
       .finally(() => setPropsLoading(false));
   }, [isOpen]);
+
+  // Close the search dropdown when clicking outside it.
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        propDropdownRef.current &&
+        !propDropdownRef.current.contains(e.target as Node)
+      ) {
+        setPropDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedKeys = useMemo(
+    () => new Set(selectedProps.map(optionKey)),
+    [selectedProps],
+  );
+
+  const filteredProperties = useMemo(() => {
+    const q = propSearch.trim().toLowerCase();
+    return properties.filter((p) => {
+      if (selectedKeys.has(optionKey(p))) return false;
+      if (!q) return true;
+      return (
+        p.title.toLowerCase().includes(q) ||
+        (p.city ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [properties, propSearch, selectedKeys]);
+
+  const regularResults = useMemo(
+    () =>
+      filteredProperties
+        .filter((p) => p.source === "property")
+        .slice(0, MAX_GROUP_RESULTS),
+    [filteredProperties],
+  );
+  const developerResults = useMemo(
+    () =>
+      filteredProperties
+        .filter((p) => p.source === "developer")
+        .slice(0, MAX_GROUP_RESULTS),
+    [filteredProperties],
+  );
+  const totalMatches = filteredProperties.length;
+  const totalShown = regularResults.length + developerResults.length;
 
   if (!isOpen) return null;
 
@@ -134,14 +223,15 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     } else setViewMonth((m) => m + 1);
   };
 
-  const addProperty = (id: string) => {
-    const prop = properties.find((p) => String(p.id) === id);
-    if (prop && !selectedProps.find((p) => p.id === prop.id))
+  const addProperty = (prop: PropertyOption) => {
+    const key = optionKey(prop);
+    if (!selectedProps.find((p) => optionKey(p) === key)) {
       setSelectedProps((prev) => [...prev, prop]);
+    }
   };
 
-  const removeProperty = (id: number | string) =>
-    setSelectedProps((prev) => prev.filter((p) => p.id !== id));
+  const removeProperty = (key: string) =>
+    setSelectedProps((prev) => prev.filter((p) => optionKey(p) !== key));
 
   const reset = () => {
     setSubmitted(false);
@@ -154,6 +244,8 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     setTouched({});
     setViewYear(today.getFullYear());
     setViewMonth(today.getMonth());
+    setPropSearch("");
+    setPropDropdownOpen(false);
   };
 
   const handleClose = () => {
@@ -309,14 +401,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
         }
         .rv-time:hover{background:rgba(231,76,60,0.08);color:#c0392b;border-color:rgba(231,76,60,0.25)}
         .rv-time.sel{background:rgba(231,76,60,0.12);border-color:rgba(231,76,60,0.45);color:#c0392b;font-weight:600}
-        .rv-select{
-          width:100%;padding:12px 16px;border-radius:12px;
-          background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.12);
-          color:rgba(0,0,0,0.6);font-size:13px;font-family:inherit;
-          outline:none;cursor:pointer;transition:border-color .2s;
-        }
-        .rv-select:focus{border-color:rgba(231,76,60,0.5)}
-        .rv-select option{background:#fff;color:#1a1a1a}
         .rv-submit{
           width:100%;padding:15px;border-radius:14px;
           background:linear-gradient(135deg,#e74c3c,#c0392b);border:none;
@@ -336,6 +420,43 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
           to{opacity:1;transform:scale(1) translateY(0)}
         }
         .rv-animate{animation:rvFadeIn .22s ease-out both}
+
+        /* ── Property search combobox ── */
+        .rv-combobox{position:relative}
+        .rv-combo-input-wrap{position:relative}
+        .rv-combo-icon{
+          position:absolute;left:14px;top:50%;transform:translateY(-50%);
+          color:rgba(0,0,0,0.3);pointer-events:none;
+        }
+        .rv-combo-input{padding-left:38px}
+        .rv-dropdown{
+          position:absolute;top:calc(100% + 6px);left:0;right:0;
+          max-height:280px;overflow-y:auto;z-index:20;
+          background:#fff;border:1px solid rgba(0,0,0,0.1);
+          border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,0.14);
+          padding:6px;
+        }
+        .rv-dropdown-group{
+          font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+          color:rgba(0,0,0,0.35);padding:8px 10px 4px;
+        }
+        .rv-dropdown-item{
+          width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+          text-align:left;padding:9px 10px;border-radius:8px;border:none;background:none;
+          font-size:13px;color:#1a1a1a;font-family:inherit;cursor:pointer;
+        }
+        .rv-dropdown-item:hover{background:rgba(231,76,60,0.08);color:#c0392b}
+        .rv-dropdown-empty{padding:16px 10px;font-size:12px;color:rgba(0,0,0,0.35);text-align:center}
+        .rv-dropdown-hint{padding:8px 10px 4px;font-size:11px;color:rgba(0,0,0,0.3);text-align:center}
+        .rv-badge{
+          flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+          background:rgba(52,152,219,0.12);color:#2980b9;border-radius:100px;padding:2px 8px;
+        }
+        .rv-chip-badge{
+          font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+          color:#2980b9;margin-left:2px;
+        }
+
         @media(max-width:480px){
           .rv-two-col{grid-template-columns:1fr !important}
           .rv-time-grid{grid-template-columns:repeat(2,1fr) !important}
@@ -813,6 +934,7 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                 {/* Properties to View */}
                 <div>
                   <label className="rv-label">Properties to View</label>
+
                   {propsLoading ? (
                     <div
                       style={{
@@ -835,21 +957,103 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       </span>
                     </div>
                   ) : (
-                    <select
-                      className="rv-select"
-                      onChange={(e) => {
-                        addProperty(e.target.value);
-                        e.currentTarget.value = "";
-                      }}
-                    >
-                      <option value="">— Select a property —</option>
-                      {properties.map((p) => (
-                        <option key={p.id} value={String(p.id)}>
-                          {p.title}
-                          {p.city ? ` · ${p.city}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="rv-combobox" ref={propDropdownRef}>
+                      <div className="rv-combo-input-wrap">
+                        <Search size={14} className="rv-combo-icon" />
+                        <input
+                          className="rv-input rv-combo-input"
+                          type="text"
+                          placeholder={`Search ${properties.length || ""} properties by name or city…`}
+                          value={propSearch}
+                          onChange={(e) => {
+                            setPropSearch(e.target.value);
+                            setPropDropdownOpen(true);
+                          }}
+                          onFocus={() => setPropDropdownOpen(true)}
+                          style={{ border: "1px solid rgba(0,0,0,0.12)" }}
+                        />
+                      </div>
+
+                      {propDropdownOpen && (
+                        <div className="rv-dropdown rv-scroll">
+                          {propsError ? (
+                            <div className="rv-dropdown-empty">
+                              {propsError}
+                            </div>
+                          ) : totalShown === 0 ? (
+                            <div className="rv-dropdown-empty">
+                              No properties found
+                              {propSearch ? ` for "${propSearch}"` : ""}.
+                            </div>
+                          ) : (
+                            <>
+                              {regularResults.length > 0 && (
+                                <>
+                                  <div className="rv-dropdown-group">
+                                    Properties
+                                  </div>
+                                  {regularResults.map((p) => (
+                                    <button
+                                      key={optionKey(p)}
+                                      type="button"
+                                      className="rv-dropdown-item"
+                                      onClick={() => {
+                                        addProperty(p);
+                                        setPropSearch("");
+                                        setPropDropdownOpen(false);
+                                      }}
+                                    >
+                                      <span>
+                                        {p.title}
+                                        {p.city ? ` · ${p.city}` : ""}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+
+                              {developerResults.length > 0 && (
+                                <>
+                                  <div className="rv-dropdown-group">
+                                    Developer Properties
+                                  </div>
+                                  {developerResults.map((p) => (
+                                    <button
+                                      key={optionKey(p)}
+                                      type="button"
+                                      className="rv-dropdown-item"
+                                      onClick={() => {
+                                        addProperty(p);
+                                        setPropSearch("");
+                                        setPropDropdownOpen(false);
+                                      }}
+                                    >
+                                      <span>
+                                        {p.title}
+                                        {p.city ? ` · ${p.city}` : ""}
+                                      </span>
+                                      <span className="rv-badge">
+                                        Developer
+                                      </span>
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+
+                              {totalMatches > totalShown && (
+                                <div className="rv-dropdown-hint">
+                                  {totalMatches - totalShown} more match
+                                  {totalMatches - totalShown === 1
+                                    ? ""
+                                    : "es"}{" "}
+                                  — keep typing to narrow it down
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <div
@@ -874,7 +1078,7 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                     ) : (
                       selectedProps.map((p) => (
                         <span
-                          key={p.id}
+                          key={optionKey(p)}
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -888,8 +1092,11 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                           }}
                         >
                           {p.title}
+                          {p.source === "developer" && (
+                            <span className="rv-chip-badge">Dev</span>
+                          )}
                           <button
-                            onClick={() => removeProperty(p.id)}
+                            onClick={() => removeProperty(optionKey(p))}
                             style={{
                               background: "none",
                               border: "none",
