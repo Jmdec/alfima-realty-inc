@@ -8,14 +8,17 @@ interface Partner {
   logo_url: string | null;
   is_active: boolean;
   category?: string;
+  url?: string | null;
 }
 
 function PartnerCard({
   name,
   logo_url,
+  url,
 }: {
   name: string;
   logo_url: string | null;
+  url?: string | null;
 }) {
   const initials = name
     .split(" ")
@@ -25,10 +28,9 @@ function PartnerCard({
     .join("")
     .toUpperCase();
 
-  return (
-    // Navigation disabled: was <Link href={`/developer?developer_name=...`}>
-    <div className="flex flex-col items-center gap-2 w-[170px] shrink-0 group">
-      <div className="w-[170px] h-[120px] bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-lg">
+  const content = (
+    <>
+      <div className="w-[170px] h-[120px] bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-lg transition-transform duration-200 group-hover:scale-[1.04] group-hover:shadow-xl">
         {logo_url ? (
           <img
             src={logo_url}
@@ -42,9 +44,28 @@ function PartnerCard({
           </span>
         )}
       </div>
-      <p className="text-rose-100 text-sm text-center leading-tight max-w-[160px]">
+      <p className="text-rose-100 text-sm text-center leading-tight max-w-[160px] group-hover:text-white transition-colors">
         {name}
       </p>
+    </>
+  );
+
+  if (url) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-col items-center gap-2 w-[170px] shrink-0 group cursor-pointer"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 w-[170px] shrink-0 group">
+      {content}
     </div>
   );
 }
