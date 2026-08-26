@@ -127,9 +127,7 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
 
     Promise.all([
       fetch("/api/properties?per_page=100&sort=priority").then((r) => r.json()),
-      fetch("/api/developer-properties?per_page=100&sort=priority").then((r) =>
-        r.json(),
-      ),
+      fetch("/api/developers-properties").then((r) => r.json()),
     ])
       .then(([propsData, devData]) => {
         const regular: PropertyOption[] = (propsData?.data ?? []).map(
