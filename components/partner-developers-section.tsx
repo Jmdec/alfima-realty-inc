@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 interface Partner {
   id: number;
@@ -11,7 +10,13 @@ interface Partner {
   category?: string;
 }
 
-function PartnerCard({ name, logo_url }: { name: string; logo_url: string | null }) {
+function PartnerCard({
+  name,
+  logo_url,
+}: {
+  name: string;
+  logo_url: string | null;
+}) {
   const initials = name
     .split(" ")
     .filter((w) => /^[A-Za-z]/.test(w))
@@ -21,11 +26,9 @@ function PartnerCard({ name, logo_url }: { name: string; logo_url: string | null
     .toUpperCase();
 
   return (
-    <Link
-      href={`/developer?developer_name=${encodeURIComponent(name)}`}
-      className="flex flex-col items-center gap-2 w-[170px] shrink-0 group cursor-pointer"
-    >
-      <div className="w-[170px] h-[120px] bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-lg transition-transform duration-200 group-hover:scale-[1.04] group-hover:shadow-xl">
+    // Navigation disabled: was <Link href={`/developer?developer_name=...`}>
+    <div className="flex flex-col items-center gap-2 w-[170px] shrink-0 group">
+      <div className="w-[170px] h-[120px] bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-lg">
         {logo_url ? (
           <img
             src={logo_url}
@@ -39,10 +42,10 @@ function PartnerCard({ name, logo_url }: { name: string; logo_url: string | null
           </span>
         )}
       </div>
-      <p className="text-rose-100 text-sm text-center leading-tight max-w-[160px] group-hover:text-white transition-colors">
+      <p className="text-rose-100 text-sm text-center leading-tight max-w-[160px]">
         {name}
       </p>
-    </Link>
+    </div>
   );
 }
 
