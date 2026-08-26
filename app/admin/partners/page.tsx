@@ -14,6 +14,7 @@ import {
   ImageOff,
   ToggleLeft,
   ToggleRight,
+  Link as LinkIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ interface Partner {
   id: number;
   name: string;
   category: PartnerCategory;
+  url: string | null;
   logo: string | null;
   logo_url: string | null;
   is_active: boolean;
@@ -185,6 +187,7 @@ function PartnerFormModal({
   onSaved: (p: Partner) => void;
 }) {
   const [name, setName] = useState(partner?.name ?? "");
+  const [url, setUrl] = useState(partner?.url ?? "");
   const [category, setCategory] = useState<PartnerCategory>(
     partner?.category ?? "developer",
   );
@@ -217,16 +220,17 @@ function PartnerFormModal({
     try {
       const fd = new FormData();
       fd.append("name", name.trim());
+      fd.append("url", url.trim());
       fd.append("category", category);
       fd.append("is_active", isActive ? "1" : "0");
       if (file) fd.append("logo", file);
       if (isEdit) fd.append("_method", "PUT");
 
-      const url = isEdit
+      const endpoint = isEdit
         ? `/api/admin/partners/${partner.id}`
         : `/api/admin/partners`;
 
-      const res = await fetch(url, { method: "POST", body: fd });
+      const res = await fetch(endpoint, { method: "POST", body: fd });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -345,6 +349,35 @@ function PartnerFormModal({
             />
             {errors.name && (
               <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Website URL */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Website URL
+            </label>
+            <div className="relative">
+              <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.example.com"
+                className={`w-full bg-slate-50 border rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all
+                  ${
+                    errors.url
+                      ? "border-red-400 focus:ring-red-100"
+                      : "border-slate-200 focus:border-red-400 focus:ring-red-100"
+                  }`}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Optional. When set, clicking this partner's card on the public
+              site opens their website in a new tab.
+            </p>
+            {errors.url && (
+              <p className="text-xs text-red-500 mt-1">{errors.url}</p>
             )}
           </div>
 
@@ -487,6 +520,16 @@ function CategorySection({
             {/* Name */}
             <td className="px-6 py-4">
               <p className="font-semibold text-slate-900">{partner.name}</p>
+              {partner.url && (
+                <a
+                  href={partner.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline truncate block max-w-[220px]"
+                >
+                  {partner.url}
+                </a>
+              )}
             </td>
 
             {/* Category badge */}
@@ -801,6 +844,16 @@ export default function PartnersAdminPage() {
                         <p className="font-semibold text-slate-900">
                           {partner.name}
                         </p>
+                        {partner.url && (
+                          <a
+                            href={partner.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline truncate block max-w-[220px]"
+                          >
+                            {partner.url}
+                          </a>
+                        )}
                       </td>
 
                       {/* Category badge */}
