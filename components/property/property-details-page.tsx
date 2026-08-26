@@ -1918,7 +1918,7 @@ function ScheduleTourModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           property_id: property.id,
-          agent_id: property.agentId ?? null,
+          agent_id: (property as any).agent?.id ?? property.agentId ?? null,
           tour_type: form.tourType,
           tour_date: form.date,
           tour_time: form.time,
@@ -3698,20 +3698,28 @@ export default function PropertyDetailsPage({
         />
       )}
 
-      {source === "property" && showContactModal && (
-        <ContactAgentModal
-          onClose={() => setShowContactModal(false)}
-          property={property}
-          listedAgent={(property as any).agent ?? null}
-        />
-      )}
+      {source === "property" &&
+        showContactModal &&
+        mounted &&
+        createPortal(
+          <ContactAgentModal
+            onClose={() => setShowContactModal(false)}
+            property={property}
+            listedAgent={(property as any).agent ?? null}
+          />,
+          document.body,
+        )}
 
-      {source === "property" && showTourModal && (
-        <ScheduleTourModal
-          onClose={() => setShowTourModal(false)}
-          property={property}
-        />
-      )}
+      {source === "property" &&
+        showTourModal &&
+        mounted &&
+        createPortal(
+          <ScheduleTourModal
+            onClose={() => setShowTourModal(false)}
+            property={property}
+          />,
+          document.body,
+        )}
 
       {/* ── Image, Video, and Unit Photo Lightboxes (portaled to body to escape backdrop-blur ancestor) ── */}
       {mounted && imageLightbox && createPortal(imageLightbox, document.body)}
@@ -4294,7 +4302,7 @@ export default function PropertyDetailsPage({
                               container.classList.toggle("max-h-96");
                             }
                           }}
-                          className="mt-5 text-sm font-semibold text-primary transition hover:text-primary/80"
+                          className="mt-5 text-sm font-semibold text-white transition hover:text-white/80"
                         >
                           Show {(property as any).amenities.length - 5} more
                           amenities →
