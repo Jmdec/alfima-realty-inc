@@ -452,26 +452,16 @@ export function AdminMobileTopbar() {
             className="fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-slate-200 z-50 flex flex-col shadow-2xl"
             style={{ animation: "slideInLeft 0.25s ease" }}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl overflow-hidden shadow">
-                  <img
-                    src="/alfima.png"
-                    alt="Alfima"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span className="text-slate-800 font-bold text-sm">
-                  Alfima Admin
-                </span>
-              </div>
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Close button floats above SidebarInner's own logo header —
+                no separate duplicate header row anymore. Higher z-index +
+                a slightly larger tap target so it's easy to hit on mobile. */}
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              className="absolute top-3.5 right-3.5 z-20 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 flex items-center justify-center text-slate-500 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <div className="flex-1 overflow-hidden">
               <SidebarInner
                 collapsed={false}
