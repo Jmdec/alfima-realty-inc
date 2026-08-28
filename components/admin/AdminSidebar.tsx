@@ -4,6 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { LuCloud } from "react-icons/lu";
+import { fetcher } from "@/lib/fetcher";
+import { formatGB } from "@/lib/utils"; // adjust path if different
 import {
   LayoutDashboard,
   Home,
@@ -71,6 +75,80 @@ const NAV_ITEMS = [
     items: [{ label: "Settings", href: "/admin/settings", icon: Settings }],
   },
 ];
+
+// ─── Storage widget ───────────────────────────────────────────────────────
+const StorageWidget: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => {
+  const { data, error } = useSWR(
+    "/api/dashboard/storage-usage",
+    fetcher,
+    { refreshInterval: 5 * 60 * 1000 }, // refresh every 5 min, no need for real-time here
+  );
+
+  if (error || !data) return null;
+
+  const percent = data.percent_used;
+  const usedGB = formatGB(data.used_bytes);
+  const totalGB = formatGB(data.total_bytes);
+  const barColor =
+    percent > 90
+      ? "bg-red-500"
+      : percent > 75
+        ? "bg-yellow-500"
+        : "bg-blue-600";
+
+  if (collapsed) {
+    return (
+      <div
+        className="flex justify-center mb-1"
+        title={`${usedGB} GB of ${totalGB} GB used (${percent}%)`}
+      >
+        <div className="relative w-7 h-7">
+          <svg className="w-7 h-7 -rotate-90" viewBox="0 0 28 28">
+            <circle
+              cx="14"
+              cy="14"
+              r="12"
+              fill="none"
+              stroke="#e5e7eb"
+              strokeWidth="3"
+            />
+            <circle
+              cx="14"
+              cy="14"
+              r="12"
+              fill="none"
+              stroke={
+                percent > 90 ? "#ef4444" : percent > 75 ? "#eab308" : "#2563eb"
+              }
+              strokeWidth="3"
+              strokeDasharray={`${(Math.min(percent, 100) / 100) * 75.4} 75.4`}
+              strokeLinecap="round"
+            />
+          </svg>
+          <LuCloud className="absolute inset-0 m-auto h-3 w-3 text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-0 mb-1 p-3 rounded-lg bg-gray-50 border border-gray-200">
+      <div className="flex items-center gap-2 text-sm text-gray-600 mb-1.5">
+        <LuCloud className="h-4 w-4 shrink-0" />
+        <span>Storage ({percent}% full)</span>
+      </div>
+      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${barColor} transition-all`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+      <p className="text-xs text-gray-400 mt-1">
+        {usedGB} GB of {totalGB} GB used
+      </p>
+    </div>
+  );
+};
 
 function SidebarInner({
   collapsed,
@@ -237,6 +315,8 @@ function SidebarInner({
 
       {/* User + Logout — pinned to bottom */}
       <div className="flex-shrink-0 border-t border-slate-100 p-3 space-y-1">
+        <StorageWidget collapsed={collapsed} />
+
         {!collapsed ? (
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100 mb-1">
             {user?.avatar ? (
