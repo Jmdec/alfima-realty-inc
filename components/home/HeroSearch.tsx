@@ -239,7 +239,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
         ? "sale"
         : activeTab === "For Rent"
           ? "rent"
-          : "developer";
+          : activeTab === "Developer"
+            ? "developer"
+            : "";
 
     onSearch({
       search: location,
@@ -262,6 +264,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
       params.set("search", location);
       params.set("city", location);
     }
+
     listingType !== "developer"
       ? params.set("listingType", listingType)
       : null;

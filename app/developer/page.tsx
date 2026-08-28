@@ -428,14 +428,26 @@ function PropertiesPageInner() {
         status: "active",
       });
       if (filters?.search) devParams.append("search", filters.search);
+      if (filters?.city) devParams.append("city", filters.city);
       if (filters?.listingType)
         devParams.append(
           "listing_type",
           normalizeListingType(filters.listingType),
         );
       if (filters?.type) devParams.append("property_type", filters.type);
+      if (filters?.minPrice != null)
+        devParams.append("min_price", String(filters.minPrice));
+      if (filters?.maxPrice != null)
+        devParams.append("max_price", String(filters.maxPrice));
+      if (
+        filters?.bedrooms !== undefined &&
+        filters?.bedrooms !== null &&
+        filters?.bedrooms !== ""
+      )
+        devParams.append("bedrooms", String(filters.bedrooms));
       if (devFilter) devParams.set("developer_name", devFilter);
       if (sort && sort !== "priority") devParams.set("sort", sort);
+      const isLocationOrKeywordSearch = !!(filters?.search || filters?.city);
 
       const regParams = new URLSearchParams({
         page: String(page),
@@ -443,19 +455,32 @@ function PropertiesPageInner() {
         status: "active",
       });
       if (filters?.search) regParams.append("search", filters.search);
+      if (filters?.city) regParams.append("city", filters.city);
       if (filters?.listingType)
         regParams.append(
           "listing_type",
           normalizeListingType(filters.listingType),
         );
       if (filters?.type) regParams.append("property_type", filters.type);
+      if (filters?.minPrice != null)
+        regParams.append("min_price", String(filters.minPrice));
+      if (filters?.maxPrice != null)
+        regParams.append("max_price", String(filters.maxPrice));
+      if (
+        filters?.bedrooms !== undefined &&
+        filters?.bedrooms !== null &&
+        filters?.bedrooms !== ""
+      )
+        regParams.append("bedrooms", String(filters.bedrooms));
       if (sort && sort !== "priority") regParams.set("sort", sort);
 
       const devFetch = fetch(`/api/developers-properties?${devParams}`);
-      // Skip regular listings when a developer filter is active
-      const regFetch = devFilter
-        ? Promise.resolve(null)
-        : fetch(`/api/properties?${regParams}`);
+      // Skip regular listings when a developer filter is active OR when
+      // this is a keyword/location search.
+      const regFetch =
+        devFilter || isLocationOrKeywordSearch
+          ? Promise.resolve(null)
+          : fetch(`/api/properties?${regParams}`);
 
       const [devRes, regRes] = await Promise.allSettled([devFetch, regFetch]);
 
@@ -539,11 +564,42 @@ function PropertiesPageInner() {
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
     const initialDev = urlParams.get("developer_name") ?? "";
+
+    // FIX: this used to only read `developer_name` and always call
+    // fetchProperties(null, ...) — so a HeroSearch navigation to
+    // /developer?search=pampanga&city=pampanga&scope=all silently dropped
+    // every one of those params and loaded the unfiltered catalog instead.
+    const initialFilters: any = {};
+    const search = urlParams.get("search");
+    const city = urlParams.get("city");
+    const listingType = urlParams.get("listingType");
+    const type = urlParams.get("type");
+    const minPrice = urlParams.get("minPrice");
+    const maxPrice = urlParams.get("maxPrice");
+    const bedrooms = urlParams.get("bedrooms");
+    const scope = urlParams.get("scope");
+
+    if (search) initialFilters.search = search;
+    if (city) initialFilters.city = city;
+    if (listingType) initialFilters.listingType = listingType;
+    if (type) initialFilters.type = type;
+    if (minPrice) initialFilters.minPrice = Number(minPrice);
+    if (maxPrice) initialFilters.maxPrice = Number(maxPrice);
+    if (bedrooms) initialFilters.bedrooms = bedrooms;
+    if (scope) initialFilters.scope = scope;
+
+    const hasFilters = Object.keys(initialFilters).length > 0;
+
     setCurrentPage(1);
-    setActiveFilters(null);
+    setActiveFilters(hasFilters ? initialFilters : null);
     setDeveloperFilter(initialDev);
     setSortBy("priority");
-    fetchProperties(null, 1, "priority", initialDev);
+    fetchProperties(
+      hasFilters ? initialFilters : null,
+      1,
+      "priority",
+      initialDev,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString]);
 
@@ -909,7 +965,6 @@ function PropertiesPageInner() {
               </span>
             </div>
           )}
-
 
           {/* Back to Home */}
           <div className="mb-4">
