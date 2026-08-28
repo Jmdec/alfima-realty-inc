@@ -329,16 +329,16 @@ export function HeroSection() {
 
           {/* CTAs */}
           <div className="hero-ctas">
-            <Link href="/properties">
+            {/* <Link href="/properties">
               <button className="hero-btn-primary">
                 Browse Properties <ArrowRight size={16} />
               </button>
-            </Link>
+            </Link> */}
             <button
-              className="hero-btn-viewing"
+              className="hero-btn-primary"
               onClick={() => setViewingOpen(true)}
             >
-              Connect to an Agent
+              Connect to an Agent <ArrowRight size={16} />
             </button>
           </div>
 

@@ -18,6 +18,7 @@ interface PropertyCardProps {
   // `priority`, which only controls Next/Image eager loading.
   featured?: boolean;
 }
+
 type FavoriteSource = "property" | "developer_property";
 
 interface FavoriteRecord {
@@ -380,14 +381,14 @@ export function PropertyCard({
   return (
     <Link href={propertyHref} className="block h-full">
       <div
-        className={`flex flex-col h-full backdrop-blur-md rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 group cursor-pointer ${
-          featured
-            ? "bg-amber-400/10 border-[3px] border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.25),0_8px_28px_rgba(251,191,36,0.35)] hover:bg-amber-400/15"
+        className={`flex flex-col h-full backdrop-blur-md rounded-xl overflow-hidden transition-all duration-300 hover:scale-105 group cursor-pointer ${
+          featured || isFavorite
+            ? "bg-[#f4f4f4]/30 border-[2px] border-[#f4f4f4]/30 shadow-[0_0_0_3px_[#f4f4f4],0_8px_28px_[#f4f4f4]] hover:bg-[#f4f4f4]/80"
             : "bg-white/10 border border-white/20 hover:shadow-2xl hover:bg-white/15"
         }`}
       >
         {/* Image */}
-        <div className="relative h-54 overflow-hidden flex-shrink-0">
+        <div className="relative h-77 overflow-hidden flex-shrink-0">
           <Image
             src={rawImageUrl}
             unoptimized
@@ -435,18 +436,20 @@ export function PropertyCard({
         <div
           className="flex flex-col flex-1 gap-3 p-4"
           style={{
-            background: "rgb(161, 46, 46)",
+            background: "rgb(148, 44, 44)",
           }}
         >
           {/* Badge row: listing type + tags */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <div className="flex w-fit items-center rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
+            <div
+              className={`flex w-fit items-center rounded-full ${isRent ? "bg-green-600" : "bg-amber-600"} px-3 py-1.5 text-xs font-bold text-white`}
+            >
               {isRent ? "For Rent" : "For Sale"}
             </div>
             {activeTags.map((tag, i) => (
               <div
                 key={tag.id ?? i}
-                className={`flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold  ${getTagColorClasses(tag.color)}`}
+                className={`flex w-fit items-center rounded-full px-3 py-1.5 text-xs font-bold  ${getTagColorClasses(tag.color)}`}
               >
                 {tag.label}
               </div>
@@ -455,25 +458,26 @@ export function PropertyCard({
 
           {/* Title */}
           <h3
-            className="font-bold text-lg leading-snug line-clamp-2 text-white min-h-[50px]"
+            className="font-bold text-xl leading-snug line-clamp-2 text-white min-h-[40px]"
             title={property.title}
           >
-            {property.title}
+            {property.title}sadsadsadas ashdgashjdg asdjasgdjasd
+            sahjdgsahjgdhjas ashjdgash
           </h3>
 
           {/* Price */}
-          <p className="text-white font-semibold">{priceDisplay}</p>
+          {/* <p className="text-white font-semibold">{priceDisplay}</p> */}
 
           {/* Location */}
           <div className="flex items-start gap-1.5 text-sm text-white">
-            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-white/80" />
-            <p className="line-clamp-1 font-medium text-white/80">
+            <MapPin className="w-5 h-5 mt-0.8 flex-shrink-0 text-white/80" />
+            <p className="line-clamp-1 text-md text-white/80 mt-0.8">
               {property.city ?? property.address ?? property.state}
             </p>
           </div>
 
           {/* Features */}
-          <div className="flex items-center gap-4 text-xs font-semibold text-white border-t border-white/20 pt-3">
+          {/* <div className="flex items-center gap-4 text-xs font-semibold text-white border-t border-white/20 pt-3">
             {(property.bedrooms ?? 0) > 0 && (
               <div className="flex items-center gap-1.5">
                 <Bed className="w-4 h-4 text-white/80" />
@@ -497,7 +501,7 @@ export function PropertyCard({
                 <span>{property.area} sqm</span>
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Agent */}
           {property.agent && (
@@ -511,7 +515,7 @@ export function PropertyCard({
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(property.agent!.name)}`;
                 }}
               />
-              <p className="text-xs font-semibold truncate text-white">
+              <p className="text-md font-semibold truncate text-white">
                 Agent: {property.agent.name}
               </p>
             </div>

@@ -322,6 +322,7 @@ export function PropertySearch({
     setSearch("");
     setListingType("");
     setType("");
+    setCity("");
     // Reset back to the real catalog min/max, not empty — and allow
     // future updates to sync again since the user is explicitly resetting.
     minPriceTouched.current = false;
@@ -329,7 +330,6 @@ export function PropertySearch({
     setMinPrice(String(priceBounds?.min ?? minPriceRange));
     setMaxPrice(String(priceBounds?.max ?? maxPriceRange));
     setBedrooms("");
-    setCity("");
     // keep scope=all on reset too, so clearing filters still shows the
     // full merged catalog instead of quietly narrowing to agent-only.
     onSearch({ scope: "all" });
@@ -420,13 +420,18 @@ export function PropertySearch({
             type="text"
             placeholder="Search by address, city, or keyword..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/80 transition text-sm text-white placeholder-blue-300"
+            onChange={(e) => {
+              const value = e.target.value;
+              setSearch(value);
+              setCity(value);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="w-full h-12 pl-10 pr-4 py-3 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/80 transition text-sm text-white placeholder-blue-300"
           />
         </div>
         <Button
           onClick={handleSearch}
-          className="bg-gradient-to-r from-blue-400/80 to-blue-500 hover:from-blue-500/60 hover:to-blue-600/60 text-blue-950 font-bold whitespace-nowrap"
+          className="bg-gradient-to-r from-blue-400/80 to-blue-500 hover:from-blue-500/60 hover:to-blue-600/60 h-12 text-blue-950 font-bold whitespace-nowrap"
         >
           Search
         </Button>
@@ -450,7 +455,7 @@ export function PropertySearch({
             <select
               value={listingType}
               onChange={(e) => setListingType(e.target.value)}
-              className="w-full px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
             >
               <option value="">All Types</option>
               <option value="buy">Buy</option>
@@ -466,7 +471,7 @@ export function PropertySearch({
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
             >
               <option value="">All Types</option>
               <option value="residential">Residential</option>
@@ -489,7 +494,7 @@ export function PropertySearch({
                 minPriceTouched.current = true;
                 setMinPrice(e.target.value);
               }}
-              className="w-full px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300"
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300"
             />
           </div>
 
@@ -507,7 +512,7 @@ export function PropertySearch({
                 maxPriceTouched.current = true;
                 setMaxPrice(e.target.value);
               }}
-              className="w-full px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300"
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300"
             />
           </div>
 
@@ -519,7 +524,7 @@ export function PropertySearch({
             <select
               value={bedrooms}
               onChange={(e) => setBedrooms(e.target.value)}
-              className="w-full px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
             >
               <option value="">Any</option>
               <option value="0">Studio</option>
@@ -552,7 +557,7 @@ export function PropertySearch({
                   if (!citiesLoading) setCityMenuOpen(true);
                 }}
                 disabled={citiesLoading}
-                className="w-full px-3 py-2 pr-8 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300 disabled:opacity-60"
+                className="w-44 h-12 px-3 py-2 pr-8 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300 disabled:opacity-60"
               />
               <ChevronDown
                 className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-300 pointer-events-none transition-transform ${
@@ -565,17 +570,17 @@ export function PropertySearch({
           </div>
 
           {/* Actions */}
-          <div className="sm:col-span-2 lg:col-span-4 flex gap-2 justify-end">
+          <div className="sm:col-span-2 lg:col-span-4 flex gap-2 justify-end mt-5">
             <Button
               onClick={handleReset}
               variant="outline"
-              className="border border-blue-700 hover:bg-blue-900/50 text-white"
+              className="border border-blue-700 hover:bg-blue-900/50 text-white h-12 w-22"
             >
               Reset
             </Button>
             <Button
               onClick={handleSearch}
-              className="bg-gradient-to-r from-blue-400/80 to-blue-500 hover:from-blue-500/50 hover:to-blue-600/80 text-blue-950  font-bold"
+              className="bg-gradient-to-r from-blue-400/80 to-blue-500 hover:from-blue-500/50 hover:to-blue-600/80 h-12 w-auto text-blue-950  font-bold"
             >
               Apply Filters
             </Button>

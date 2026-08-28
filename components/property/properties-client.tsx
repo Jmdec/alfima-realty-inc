@@ -9,7 +9,10 @@ import Image from "next/image";
 import { PropertyCard } from "@/components/property/property-card";
 import { PropertySearch } from "@/components/property/property-search";
 import { useAuth } from "@/lib/store";
-import { normalizeSource } from "@/components/developer-property-card";
+import {
+  getFavoriteKey,
+  normalizeSource,
+} from "@/components/developer-property-card";
 import {
   Home,
   ArrowUpDown,
@@ -19,12 +22,18 @@ import {
   LayoutList,
   Heart,
 } from "lucide-react";
-
+import { Property } from "@/lib/types";
+4;
 interface PaginationMeta {
   current_page: number;
   last_page: number;
   per_page: number;
   total: number;
+}
+interface PropertyCardProps {
+  property: Property;
+  priority?: boolean;
+  featured?: boolean;
 }
 
 const SORT_OPTIONS = [
@@ -50,6 +59,14 @@ function normalizeListingType(raw: string): string {
   if (v === "for sale" || v === "sale" || v === "buy") return "sale";
   if (v === "for rent" || v === "rent") return "rent";
   return raw;
+}
+
+// Priority rank helper for sorting — properties without a valid priority
+// (null/0/NaN) sink to the bottom via +Infinity. Mirrors app/developer/page.tsx
+// and FeaturedProperties so all surfaces order consistently.
+function priorityRank(p: any): number {
+  const val = Number(p.priority);
+  return !isNaN(val) && val >= 1 ? val : Number.POSITIVE_INFINITY;
 }
 
 function thumbUrl(url: string, w = 400, h = 300): string {
@@ -491,6 +508,51 @@ function PropertiesPageInner() {
   const [sortBy, setSortBy] = useState("priority");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
+  // ── Favorites (for favorited-first ordering) ─────────────────────────────
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFavorites() {
+      try {
+        const res = await fetch("/api/favorites", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (!cancelled) setFavoriteKeys(new Set());
+          return;
+        }
+
+        const favorites: unknown =
+          (await res.json())?.data ?? (await res.json());
+        if (!Array.isArray(favorites)) {
+          if (!cancelled) setFavoriteKeys(new Set());
+          return;
+        }
+
+        const keys = new Set(
+          favorites.map((f: any) => {
+            const source = normalizeSource(f.source);
+            return `${source}:${f.property_id}`;
+          }),
+        );
+
+        if (!cancelled) setFavoriteKeys(keys);
+      } catch {
+        if (!cancelled) setFavoriteKeys(new Set());
+      }
+    }
+
+    loadFavorites();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchProperties = async (filters?: any, page = 1, sort = sortBy) => {
     setLoading(true);
     try {
@@ -833,6 +895,17 @@ function PropertiesPageInner() {
       <section className="py-10 bg-gradient-to-t from-[#8b1a1a]/90 from-[20%] to-red-800/30 to-[100%]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Toolbar */}
+
+          {/* Back to Home */}
+          <div className="mb-4">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm font-semibold transition-colors"
+            >
+              ← Back to Home{" "}
+            </Link>
+          </div>
+
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <div
@@ -953,19 +1026,27 @@ function PropertiesPageInner() {
                 }`}
               >
                 {properties
+                  .slice()
                   .sort((a, b) => {
-                    const aP = Number(a.priority);
-                    const bP = Number(b.priority);
-                    const aHas = !isNaN(aP) && aP >= 1;
-                    const bHas = !isNaN(bP) && bP >= 1;
+                    const aKey = getFavoriteKey(a);
+                    const bKey = getFavoriteKey(b);
+                    const aFav = favoriteKeys?.has(aKey) ?? false;
+                    const bFav = favoriteKeys?.has(bKey) ?? false;
 
-                    if (aHas && bHas) return aP - bP;
-                    if (aHas) return -1;
-                    if (bHas) return 1;
-                    return 0;
+                    if (aFav !== bFav) return aFav ? -1 : 1;
+                    return priorityRank(a) - priorityRank(b);
                   })
                   .map((p, idx) => (
-                    <PropertyCard key={p.id} property={p} priority={idx < 3} />
+                    <PropertyCard
+                      key={p.id}
+                      property={p}
+                      priority={idx < 3}
+                      initialIsFavorite={
+                        favoriteKeys
+                          ? favoriteKeys.has(getFavoriteKey(p))
+                          : undefined
+                      }
+                    />
                   ))}
               </div>
 

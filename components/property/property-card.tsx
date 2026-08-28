@@ -17,6 +17,7 @@ interface PropertyCardProps {
   // card seeds from it instead of doing its own redundant fetch. Leave
   // undefined for standalone usage — the card will fetch for itself.
   initialIsFavorite?: boolean;
+  featured?: boolean;
 }
 
 type FavoriteSource = "property" | "developer_property";
@@ -123,14 +124,12 @@ function formatPrice(amount: number): string {
 export function PropertyCard({
   property,
   priority = false,
-  initialIsFavorite,
+  featured = false,
 }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [favoriteLoaded, setFavoriteLoaded] = useState(
-    initialIsFavorite !== undefined,
-  );
+  const [favoriteLoaded, setFavoriteLoaded] = useState(false);
   const { user } = useAuth();
 
   const source: FavoriteSource = normalizeSource(
@@ -189,17 +188,8 @@ export function PropertyCard({
 
   // ───────────────────────────────────────────
   // LOAD FAVORITE STATE
-  // (skipped entirely when a parent list already supplied initialIsFavorite —
-  // e.g. properties-client.tsx fetches /api/favorites once for the whole
-  // grid so it can sort favorited items first, and passes the result down)
   // ───────────────────────────────────────────
   useEffect(() => {
-    if (initialIsFavorite !== undefined) {
-      setIsFavorite(initialIsFavorite);
-      setFavoriteLoaded(true);
-      return;
-    }
-
     let cancelled = false;
 
     async function loadFavorite() {
@@ -268,17 +258,11 @@ export function PropertyCard({
       }
     }
 
-    if (user) {
-      loadFavorite();
-    } else {
-      setIsFavorite(false);
-      setFavoriteLoaded(true);
-    }
-
+    loadFavorite();
     return () => {
       cancelled = true;
     };
-  }, [favoritePropertyId, source, user, initialIsFavorite]);
+  }, [favoritePropertyId, source]);
 
   // ───────────────────────────────────────────
   // TOGGLE FAVORITE
@@ -336,9 +320,15 @@ export function PropertyCard({
 
   return (
     <Link href={detailHref} className="h-full">
-      <div className="flex flex-col h-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 group cursor-pointer hover:bg-white/15">
+      <div
+        className={`flex flex-col h-full backdrop-blur-md rounded-xl overflow-hidden transition-all duration-300 hover:scale-105 group cursor-pointer ${
+          featured || isFavorite
+            ? "bg-[#f4f4f4]/40 border-[3px] border-[#f4f4f4]/50 shadow-[0_0_0_3px_[#f4f4f4],0_8px_28px_[#f4f4f4]] hover:bg-[#f4f4f4]/90"
+            : "bg-white/10 border border-white/20 hover:shadow-2xl hover:bg-white/15"
+        }`}
+      >
         {/* Property image */}
-        <div className="relative h-48 flex-shrink-0 overflow-hidden bg-muted">
+        <div className="relative h-64 flex-shrink-0 overflow-hidden bg-muted">
           <Image
             src={rawImageUrl}
             alt={property.title}
@@ -379,16 +369,23 @@ export function PropertyCard({
         </div>
 
         {/* Card body */}
-        <div className="flex flex-col flex-1 p-4">
+        <div
+          className="flex flex-col flex-1 gap-3 p-4"
+          style={{
+            background: "rgb(148, 44, 44)",
+          }}
+        >
           {/* Badge row: listing type + tags */}
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-            <div className="flex w-fit items-center rounded-full bg-gradient-to-r from-red-600 to-red-700 px-3 py-1 text-xs font-bold text-white">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div
+              className={`flex w-fit items-center rounded-full ${isRent ? "bg-green-600" : "bg-amber-600"} px-3 py-1.5 text-xs font-bold text-white`}
+            >
               {isRent ? "For Rent" : "For Sale"}
             </div>
             {activeTags.map((tag, i) => (
               <div
                 key={tag.id ?? i}
-                className={`flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold ${getTagColorClasses(tag.color)}`}
+                className={`flex w-fit items-center rounded-full px-3 py-1.5 text-xs font-bold  ${getTagColorClasses(tag.color)}`}
               >
                 {tag.label}
               </div>
@@ -406,14 +403,14 @@ export function PropertyCard({
           </div> */}
 
           {/* Title */}
-          <h3 className="font-semibold text-base mb-2 line-clamp-2 text-white group-hover:text-white/90 transition">
+          <h3 className="font-bold text-xl leading-snug line-clamp-2 text-white min-h-[40px]">
             {property.title}
           </h3>
 
           {/* Location */}
-          <div className="flex items-start gap-1 text-sm text-white/70 mb-3">
-            <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5 text-white/70" />
-            <p className="line-clamp-1 text-white/70">
+          <div className="flex items-start gap-1.5 text-sm text-white">
+            <MapPin className="w-5 h-5 mt-0.8 flex-shrink-0 text-white/80" />
+            <p className="line-clamp-1 text-md text-white/80 mt-0.8">
               {[property.address, property.city, property.state]
                 .filter(Boolean)
                 .join(", ")}
@@ -421,7 +418,7 @@ export function PropertyCard({
           </div>
 
           {/* Features */}
-          <div className="flex gap-4 mb-4 text-xs text-white/60 border-t border-white/20 pt-3">
+          {/* <div className="flex gap-4 mb-4 text-xs text-white/60 border-t border-white/20 pt-3">
             {(property.bedrooms ?? 0) > 0 && (
               <div className="flex items-center gap-1">
                 <Bed className="w-4 h-4" />
@@ -440,7 +437,7 @@ export function PropertyCard({
                 <span>{property.area} sqm</span>
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Agent */}
           {property.agent && (
@@ -458,7 +455,7 @@ export function PropertyCard({
                 }}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white/90 line-clamp-1">
+                <p className="text-md font-semibold text-white/90 line-clamp-1">
                   Agent: {property.agent.name}
                 </p>
               </div>

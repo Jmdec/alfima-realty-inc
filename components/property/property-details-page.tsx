@@ -240,39 +240,35 @@ function formatPriceRange(
   return `${formatPrice(minNum ?? maxNum)}${suffix}`;
 }
 
-// ── Estimated Payments (frontend-only, price-based, no backend fields) ────
 const ASSUMED_INTEREST_RATE = 6.5; // annual %
 const ASSUMED_LOAN_TERM_YEARS = 20;
+const DOWN_PAYMENT_PERCENT = 5;
 
-// `backendKey` maps each frontend payment category to the value stored in
-// the property's `financing_option` array (see DeveloperPropertiesController
-// FINANCING_OPTIONS / FINANCING_OPTIONS constant on the admin form) so we
-// can gate which buttons are clickable based on what the property actually
-// offers.
 const PAYMENT_CATEGORIES = [
   {
     id: "inhouse",
     label: "In-House Financing",
-    downPaymentPercent: 10,
     backendKey: "in_house_financing",
   },
   {
     id: "pagibig",
     label: "PAG-IBIG Financing",
-    downPaymentPercent: 5,
     backendKey: "pag_ibig_financing",
   },
   {
     id: "bank",
     label: "Bank Financing",
-    downPaymentPercent: 20,
     backendKey: "bank_financing",
   },
 ] as const;
 
 function pesos(amount: number): string {
-  if (!amount || isNaN(amount)) return "₱0";
-  return `₱${amount.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
+  if (!Number.isFinite(amount)) return "₱0";
+
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function EstimatedPayments({
@@ -280,133 +276,125 @@ function EstimatedPayments({
   availableFinancing,
 }: {
   price: number;
-  // Raw backend values, e.g. ["in_house_financing", "bank_financing"].
-  // Empty/undefined means "not specified" — in that case we fall back to
-  // showing all options as clickable rather than silently locking out
-  // financing selection on properties that predate this field.
+
+  // Example:
+  // ["in_house_financing", "bank_financing"]
+  //
+  // If empty/undefined, all financing options are shown.
   availableFinancing?: string[];
 }) {
+  // ── Financing availability ────────────────────────────────────────────────
+
   const hasRestriction = (availableFinancing?.length ?? 0) > 0;
 
-  const isAvailable = (backendKey: string) =>
-    !hasRestriction || availableFinancing!.includes(backendKey);
+  const isAvailable = useCallback(
+    (backendKey: string) => {
+      if (!hasRestriction) return true;
 
-  const initialCategory =
-    PAYMENT_CATEGORIES.find((c) => isAvailable(c.backendKey)) ??
-    PAYMENT_CATEGORIES[0];
+      return availableFinancing?.includes(backendKey) ?? false;
+    },
+    [availableFinancing, hasRestriction],
+  );
+
+  // Get only financing options actually available for this property.
+  const availableCategories = PAYMENT_CATEGORIES.filter((category) =>
+    isAvailable(category.backendKey),
+  );
+
+  // Select the first available financing option by default.
+  const initialCategory = availableCategories[0] ?? PAYMENT_CATEGORIES[0];
 
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof PAYMENT_CATEGORIES)[number]>(initialCategory);
 
-  // Re-validate the selected category whenever the available financing list
-  // changes (e.g. property data finishes loading after initial mount).
+  // ── Revalidate selected financing option ──────────────────────────────────
+  //
+  // This handles cases where property data loads after the component mounts.
+  // If the currently selected financing option is unavailable,
+  // automatically select the first available one.
+
   useEffect(() => {
     if (!isAvailable(selectedCategory.backendKey)) {
       const fallback =
-        PAYMENT_CATEGORIES.find((c) => isAvailable(c.backendKey)) ??
-        PAYMENT_CATEGORIES[0];
+        PAYMENT_CATEGORIES.find((category) =>
+          isAvailable(category.backendKey),
+        ) ?? PAYMENT_CATEGORIES[0];
+
       setSelectedCategory(fallback);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFinancing?.join(",")]);
+  }, [availableFinancing, isAvailable, selectedCategory.backendKey]);
 
-  const downPaymentPercent = selectedCategory.downPaymentPercent;
-  const downPayment = price * (downPaymentPercent / 100);
-  const loanAmount = price - downPayment;
+  // ── Price calculation ─────────────────────────────────────────────────────
+
+  const listPrice = Number(price) || 0;
+
+  // 5% downpayment
+  const downPayment = listPrice * (DOWN_PAYMENT_PERCENT / 100);
+
+  // Remaining 95% becomes the loan balance
+  const loanAmount = listPrice - downPayment;
+
+  // ── Monthly mortgage calculation ─────────────────────────────────────────
+
   const monthlyRate = ASSUMED_INTEREST_RATE / 100 / 12;
-  const numPayments = ASSUMED_LOAN_TERM_YEARS * 12;
+
+  const numberOfPayments = ASSUMED_LOAN_TERM_YEARS * 12;
 
   const monthlyMortgage =
     monthlyRate === 0
-      ? loanAmount / numPayments
-      : (loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments))) /
-        (Math.pow(1 + monthlyRate, numPayments) - 1);
+      ? loanAmount / numberOfPayments
+      : (loanAmount *
+          (monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments))) /
+        (Math.pow(1 + monthlyRate, numberOfPayments) - 1);
 
   return (
-    <div className="mb-2 space-y-5">
+    <div className="mb-4 space-y-5">
+      {/* ─────────────────────────────────────────────────────────────────── */}
       {/* Estimated Monthly */}
-      <div className="space-y-1">
+      {/* ─────────────────────────────────────────────────────────────────── */}
+
+      <div className="space-y-2 mb-6">
         <p className="text-sm text-white/80">Estimated Monthly</p>
 
-        <h3 className="text-4xl font-bold leading-tight text-white">
+        <h3 className="text-3xl font-bold leading-tight text-white">
           {pesos(monthlyMortgage)}
+
           <span className="ml-1 text-lg font-normal text-white/80">/mo</span>
         </h3>
       </div>
 
-      {/* Payment Category Links */}
-      <div className="space-y-2">
-        <p className="text-xs text-white/80">Financing Option</p>
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* Financing Options */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
 
-        <div className="flex flex-wrap gap-1.5">
-          {PAYMENT_CATEGORIES.map((category) => {
-            const available = isAvailable(category.backendKey);
-            const isSelected = selectedCategory.id === category.id;
-            return (
-              <button
-                key={category.id}
-                onClick={() => available && setSelectedCategory(category)}
-                disabled={!available}
-                title={available ? undefined : "Not offered on this property"}
-                className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
-                  !available
-                    ? "bg-white/5 text-white/30 cursor-not-allowed"
-                    : isSelected
+      {availableCategories.length > 0 && (
+        <div className="space-y-2 mb-8">
+          <p className="text-sm text-white/80">Financing Option</p>
+
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-auto ">
+            {availableCategories.map((category) => {
+              const isSelected = selectedCategory.id === category.id;
+
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  className={`${availableCategories.length > 1 ? "sm:w-36" : "w-full"} h-8 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
+                    isSelected
                       ? "bg-white text-red-800"
                       : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-              >
-                {category.label}
-                {!available && (
-                  <span className="ml-1 text-[9px] font-normal">
-                    (Unavailable)
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Breakdown */}
-      <div className="rounded-xl border border-white/15 bg-black/20 p-4">
-        <div className="space-y-3">
-          {/* Downpayment */}
-          <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="text-white/80">
-              Downpayment ({downPaymentPercent}%)
-            </span>
-
-            <span className="shrink-0 font-semibold text-white">
-              {pesos(downPayment)}
-            </span>
-          </div>
-
-          {/* Loan Amount */}
-          <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="text-white/80">Loan Amount</span>
-
-            <span className="shrink-0 font-semibold text-white">
-              {pesos(loanAmount)}
-            </span>
-          </div>
-
-          {/* Monthly Mortgage */}
-          <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-3 text-sm">
-            <span className="text-white/80">Est. Monthly Mortgage</span>
-
-            <span className="shrink-0 font-semibold text-white">
-              {pesos(monthlyMortgage)}
-            </span>
+                  }`}
+                >
+                  {category.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Disclaimer */}
-      <p className="text-[11px] leading-relaxed text-white">
-        Estimate only, based on {ASSUMED_INTEREST_RATE}% interest and a{" "}
-        {ASSUMED_LOAN_TERM_YEARS}-yr term.
-      </p>
+   
     </div>
   );
 }
@@ -3070,8 +3058,114 @@ export default function PropertyDetailsPage({
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="glass rounded-xl h-96 animate-pulse" />
+      <div className="min-h-screen mb-12">
+        {/* Hero / search bar skeleton */}
+
+        <div className=" bg-gradient-to-br from-[#1a0a12] via-[#3a0d1a] to-[#1a0a12] animate-pulse" />
+
+        {/* Image collage */}
+
+        {/* Spacer to account for the overlapping search card above */}
+        <div className="h-20" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          {/* Back link */}
+          <div className="h-4 w-32 rounded bg-white/15 animate-pulse mb-4" />
+
+          {/* Image collage: 1 large left, 2x2 right, photo count pill bottom-right */}
+          <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 p-2 my-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 h-[300px] sm:h-[380px]">
+              <div className="lg:col-span-2 h-full rounded-lg bg-white/10 animate-pulse" />
+              <div className="grid grid-cols-2 grid-rows-2 gap-2 h-full">
+                <div className="rounded-lg bg-white/10 animate-pulse" />
+                <div className="rounded-lg bg-white/10 animate-pulse" />
+                <div className="rounded-lg bg-white/10 animate-pulse" />
+                <div className="rounded-lg bg-white/10 animate-pulse" />
+              </div>
+            </div>
+            <div className="absolute bottom-4 right-4 h-8 w-32 rounded-lg bg-black/40 border border-white/10 animate-pulse" />
+          </div>
+
+          {/* Tab bar + action buttons */}
+          <div className="flex flex-col border border-white/10 bg-white/5 p-2 rounded-2xl sm:flex-row sm:items-center sm:justify-between gap-3 mt-3 mb-6">
+            <div className="flex gap-2">
+              <div className="h-9 w-24 rounded-lg bg-white/15 animate-pulse" />
+              <div className="h-9 w-24 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 w-32 rounded-lg bg-white/10 animate-pulse" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-9 w-20 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 w-32 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-9 w-36 rounded-lg bg-white/10 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Two-column content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left / main column */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Title card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-6 w-2/3 rounded bg-white/15 animate-pulse mb-3" />
+                <div className="h-4 w-1/3 rounded bg-white/10 animate-pulse mb-4" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-16 rounded-full bg-white/10 animate-pulse" />
+                  <div className="h-6 w-16 rounded-full bg-white/10 animate-pulse" />
+                </div>
+              </div>
+
+              {/* About this property */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-5 w-40 rounded bg-white/15 animate-pulse mb-4" />
+                <div className="h-4 w-full rounded bg-white/10 animate-pulse mb-2" />
+                <div className="h-4 w-5/6 rounded bg-white/10 animate-pulse" />
+              </div>
+
+              {/* Location Map */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-5 w-32 rounded bg-white/15 animate-pulse mb-4" />
+                <div className="h-56 w-full rounded-xl bg-white/10 animate-pulse" />
+              </div>
+
+              {/* Amenities */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-5 w-28 rounded bg-white/15 animate-pulse mb-4" />
+                <div className="flex gap-3">
+                  <div className="h-9 w-32 rounded-lg bg-white/10 animate-pulse" />
+                  <div className="h-9 w-40 rounded-lg bg-white/10 animate-pulse" />
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-5 w-24 rounded bg-white/15 animate-pulse mb-4" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+                  <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+                  <div className="h-9 rounded-lg bg-white/10 animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right / sidebar column */}
+            <div className="space-y-6">
+              {/* Monthly rent card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-4 w-24 rounded bg-white/10 animate-pulse mb-3" />
+                <div className="h-7 w-40 rounded bg-white/15 animate-pulse" />
+              </div>
+
+              {/* Listed by card */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <div className="h-4 w-20 rounded bg-white/10 animate-pulse mb-4" />
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-white/15 animate-pulse" />
+                  <div className="h-4 w-28 rounded bg-white/10 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -4374,23 +4468,20 @@ export default function PropertyDetailsPage({
 
           {/* ── Sidebar ── */}
           <div className="space-y-6">
-            <div className="glass rounded-xl p-8 sm:p-10 sticky top-24">
+            <div className="glass rounded-xl px-8 sm:px-10 pt-10 pb-4 sticky top-24">
               {listingType !== "rent" && Number(property.price) > 0 ? (
                 <>
                   <EstimatedPayments
                     price={Number(property.price)}
                     availableFinancing={financingOptions}
                   />
-                  <p className="text-xs text-white mb-6">
-                    List Price: {formatPrice(property.price)}
-                  </p>
                 </>
               ) : (
                 <>
                   <p className="text-white text-sm mb-2">
                     {listingType === "rent" ? "Monthly Rent" : "Price"}
                   </p>
-                  <h3 className="text-4xl font-bold text-white mb-6">
+                  <h3 className="text-2xl font-bold text-white mb-6">
                     {listingType === "rent"
                       ? formatPrice(
                           (property as any).price_per_month ??
@@ -4457,6 +4548,7 @@ export default function PropertyDetailsPage({
                   : "properties for sale"}
               </p>
             </div>
+
             {relatedLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(3)].map((_, i) => (

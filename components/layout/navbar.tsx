@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Menu,
   X,
@@ -237,6 +237,8 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [navbarVisible, setNavbarVisible] = useState(true);
+  const isMouseOverNavbar = useRef(false);
   const [mounted, setMounted] = useState(false);
 
   const [installPrompt, setInstallPrompt] =
@@ -248,10 +250,60 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    let lastScrollY = window.scrollY;
+
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Always show at the very top
+      if (currentScrollY <= 150) {
+        setNavbarVisible(true);
+        setScrolled(false);
+        lastScrollY = currentScrollY;
+        return;
+      }
+
+      setScrolled(true);
+
+      // Scrolling down → hide
+      if (currentScrollY > lastScrollY) {
+        if (!isMouseOverNavbar.current) {
+          setNavbarVisible(false);
+        }
+      }
+
+      // Scrolling up → show
+      else if (currentScrollY < lastScrollY) {
+        setNavbarVisible(true);
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // Desktop only
+      if (window.innerWidth < 768) return;
+
+      // Bring navbar back when mouse reaches the top
+      if (e.clientY <= 150) {
+        setNavbarVisible(true);
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  });
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -330,15 +382,35 @@ export function Navbar() {
 
   return (
     <nav
+      onMouseEnter={() => {
+        if (window.innerWidth >= 768) {
+          isMouseOverNavbar.current = true;
+          setNavbarVisible(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (window.innerWidth >= 768) {
+          isMouseOverNavbar.current = false;
+
+          // Hide again if we're not at the top
+          if (window.scrollY > 20) {
+            setNavbarVisible(false);
+          }
+        }
+      }}
       style={{
         background:
           "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%)",
       }}
-      className={`fixed top-0 w-full z-50 transition-all duration-500 overflow-visible ${
-        scrolled
-          ? "shadow-lg shadow-black/10 border-b border-gray-300"
-          : "backdrop-blur-md border-b border-gray-300/80"
-      }`}
+      className={`fixed top-0 w-full z-50 overflow-visible
+    transition-transform duration-300 ease-in-out
+    ${navbarVisible ? "translate-y-0" : "-translate-y-full"}
+    ${
+      scrolled
+        ? "shadow-lg shadow-black/10 border-b border-gray-300"
+        : "backdrop-blur-md border-b border-gray-300/80"
+    }
+  `}
     >
       <div className="max-w-full mx-auto py-2 md:py-3 px-4 sm:px-6 lg:px-16 overflow-visible">
         <div className="flex justify-between items-center h-20 md:h-28">

@@ -38,7 +38,7 @@ const BEDROOMS = [
   "5+ Bedrooms",
 ];
 
-const TABS = ["Buy", "Rent"] as const;
+const TABS = ["For Sale", "For Rent", "Developer"] as const;
 type Tab = (typeof TABS)[number];
 
 /* ── Dropdown — renders panel via Portal into document.body ─── */
@@ -224,7 +224,7 @@ function FieldDropdown({
 
 /* ── Main ────────────────────────────────────────────────────── */
 export function HeroSearch({ onSearch }: HeroSearchProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("Buy");
+  const [activeTab, setActiveTab] = useState<Tab>("For Sale");
   const [location, setLocation] = useState("");
   const [propType, setPropType] = useState("");
   const [budget, setBudget] = useState("");
@@ -234,10 +234,21 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
 
   const handleSearch = () => {
     const [minPrice, maxPrice] = budget ? budget.split("-") : ["", ""];
-    const listingType = activeTab === "Buy" ? "sale" : "rent"; // was "For Sale" / "For Rent"
+    const listingType =
+      activeTab === "For Sale"
+        ? "sale"
+        : activeTab === "For Rent"
+          ? "rent"
+          : "developer";
 
     onSearch({
       search: location,
+      // Also pass the typed text as `city` — the input's own placeholder
+      // ("City, neighborhood, or address…") promises location matching,
+      // but the properties page only had a generic `search` param wired
+      // up, which searched title/description and could miss a plain city
+      // name. Sending both lets the backend match on either.
+      city: location,
       listingType,
       type: propType,
       minPrice,
@@ -246,17 +257,31 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
     });
 
     const params = new URLSearchParams();
-    if (location) params.set("search", location);
-    params.set("listingType", listingType);
+
+    if (location) {
+      params.set("search", location);
+      params.set("city", location);
+    }
+    listingType !== "developer"
+      ? params.set("listingType", listingType)
+      : null;
+
     params.set("scope", "all"); // ← tells the API to include developer inventory
     // NOTE: backend reads "property_type" / "propertyType" — NOT "type".
-    // Sending "type" made this filter a silent no-op.
-    if (propType) params.set("propertyType", propType);
+    // Sending "type" made this filter a silent no-op. It also needs to
+    // match the key properties-client.tsx reads back out of the URL,
+    // which is "type" — see the FIX comment there.
+    if (propType) params.set("type", propType);
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (bedrooms) params.set("bedrooms", bedrooms);
 
-    window.location.href = `/properties?${params.toString()}`;
+    if (listingType === "sale")
+      window.location.href = `/properties?${params.toString()}`;
+    if (listingType === "rent")
+      window.location.href = `/properties?${params.toString()}`;
+    if (listingType === "developer")
+      window.location.href = `/developer?${params.toString()}`;
   };
 
   const activeCount = [propType, budget, bedrooms].filter(Boolean).length;
@@ -472,7 +497,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             border: none; cursor: pointer;
             padding: 0 28px;
             border-radius: 12px;
-            font-size: 14px; font-weight: 800;
+            font-size: 16px; font-weight: 800;
             letter-spacing: 0.04em;
             font-family: 'DM Sans', sans-serif;
             display: flex; align-items: center; gap: 8px;
@@ -480,7 +505,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             box-shadow: 0 6px 20px rgba(12,27,77,0.4);
             transition: all 0.22s ease;
             flex-shrink: 0;
-            height: 52px;
+            height: 56px;
           }
           .hs2-search-btn:hover {
             transform: translateY(-1px);
