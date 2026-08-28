@@ -262,14 +262,10 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
       params.set("search", location);
       params.set("city", location);
     }
-    listingType !== "developer"
-      ? params.set("listingType", listingType)
-      : null;
-
-    params.set("scope", "all"); // ← tells the API to include developer inventory
-    // NOTE: backend reads "property_type" / "propertyType" — NOT "type".
-    // Sending "type" made this filter a silent no-op. It also needs to
-    // match the key properties-client.tsx reads back out of the URL,
+    listingType !== "developer" ? params.set("listingType", listingType) : null;
+    if (listingType === "developer") {
+      params.set("scope", "all");
+    }
     // which is "type" — see the FIX comment there.
     if (propType) params.set("type", propType);
     if (minPrice) params.set("minPrice", minPrice);
