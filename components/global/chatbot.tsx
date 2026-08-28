@@ -44,7 +44,7 @@ const POLL_MS = 4000;
 const DEVELOPER_LISTINGS_PAGE = "/developer-properties";
 
 const CONTACT = {
-  email: "ABMacalincag@alfimarealtyinc.com",
+  email: "sales@alfimarealtyinc.com",
   phone: "09171742419",
   address:
     "10th Floor IBP Tower, Jade Drive, Brgy San Antonio, Pasig, Philippines",
