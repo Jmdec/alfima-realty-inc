@@ -239,7 +239,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
         ? "sale"
         : activeTab === "For Rent"
           ? "rent"
-          : "developer";
+          : activeTab === "Developer"
+            ? "developer"
+            : "";
 
     onSearch({
       search: location,
