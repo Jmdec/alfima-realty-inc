@@ -19,8 +19,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 const FAVICON_VERSION = "v2";
 
 // ─── Facebook Pixel ──────────────────────────────────────────────────────────  ← added
-const FB_PIXEL_ID = "1842786363357947";                                          // ← added
-
+const FB_PIXEL_ID = "1842786363357947"; // ← added
 
 // ─── Canonical base — no trailing slash ──────────────────────────────────────
 // Use your real domain once deployed; Vercel preview URL hurts canonical signals
@@ -268,7 +267,7 @@ const jsonLd = {
       },
       hasMap: "https://maps.google.com/?q=IBP+Tower+Jade+Drive+Pasig",
       telephone: "+63-917-174-2419",
-      email: "ABMacalincag@alfimarealtyinc.com",
+      email: "sales@alfimarealtyinc.com",
       contactPoint: [
         {
           "@type": "ContactPoint",
@@ -407,7 +406,7 @@ const jsonLd = {
           name: "How can I contact ALFIMA Realty Inc.?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "You can reach ALFIMA Realty Inc. by calling 0917 174 2419, emailing ABMacalincag@alfimarealtyinc.com, or visiting our office at IBP Tower, Pasig City. Office hours are Monday to Friday, 8AM–5PM, and Saturday, 9AM–1PM.",
+            text: "You can reach ALFIMA Realty Inc. by calling 0917 174 2419, emailing sales@alfimarealtyinc.com, or visiting our office at IBP Tower, Pasig City. Office hours are Monday to Friday, 8AM–5PM, and Saturday, 9AM–1PM.",
           },
         },
         {
@@ -468,7 +467,7 @@ export default function RootLayout({
 
         {/* ── Business contact (legacy crawlers) ── */}
         <meta name="contact" content="0917 174 2419" />
-        <meta name="reply-to" content="ABMacalincag@alfimarealtyinc.com" />
+        <meta name="reply-to" content="sales@alfimarealtyinc.com" />
 
         {/* ── JSON-LD Structured Data (@graph bundle) ── */}
         <script
@@ -477,8 +476,8 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased overflow-x-hidden">
-        {/* ── Facebook Pixel base code ──────────────────────────────────── */} 
-        <Script id="fb-pixel" strategy="afterInteractive">                       
+        {/* ── Facebook Pixel base code ──────────────────────────────────── */}
+        <Script id="fb-pixel" strategy="afterInteractive">
           {`                                                                   
             !function(f,b,e,v,n,t,s)
             {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -491,19 +490,19 @@ export default function RootLayout({
             fbq('init', '${FB_PIXEL_ID}');
             fbq('track', 'PageView');
           `}
-        </Script>                                                                
-        <noscript>                                                               
-          <img                                                                   
-            height="1"                                                           
+        </Script>
+        <noscript>
+          <img
+            height="1"
             width="1"
             style={{ display: "none" }}
             src={`https://www.facebook.com/tr?id=${FB_PIXEL_ID}&ev=PageView&noscript=1`}
             alt=""
           />
-        </noscript>                                                              
-        <Suspense fallback={null}>                                               
-          <PixelRouteTracker />                                                  
-        </Suspense>                                                              
+        </noscript>
+        <Suspense fallback={null}>
+          <PixelRouteTracker />
+        </Suspense>
 
         <AuthProvider>
           <Navbar />
