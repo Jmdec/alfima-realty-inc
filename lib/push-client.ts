@@ -16,7 +16,42 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   }
   return outputArray;
 }
+// Add this function to lib/push-client.ts, alongside enablePushNotifications
 
+export async function verifyPushSubscription(): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return false;
+  }
+
+  const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return false;
+
+  try {
+    const res = await fetch("/api/push/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+
+    if (!data.exists) {
+      // Server no longer has this device registered — clean up the
+      // stale browser-side subscription so it doesn't linger forever.
+      await sub.unsubscribe();
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Push verify failed:", err);
+    return false;
+  }
+}
 export async function enablePushNotifications(): Promise<
   { ok: true } | { ok: false; reason: string }
 > {

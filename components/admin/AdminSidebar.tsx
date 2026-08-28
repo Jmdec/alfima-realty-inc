@@ -419,6 +419,12 @@ export function AdminMobileTopbar() {
           0%, 100% { transform: translateY(0); opacity: 1; }
           50% { transform: translateY(-3px); opacity: 0.75; }
         }
+        /* Faster tap response on mobile — avoids the ~300ms tap delay some
+           browsers apply, and skips the default tap-highlight flash. */
+        .mobile-drawer a, .mobile-drawer button {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
       `}</style>
 
       {/* Topbar strip */}
@@ -445,12 +451,12 @@ export function AdminMobileTopbar() {
       {mobileOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/40 z-50"
             onClick={() => setMobileOpen(false)}
           />
           <aside
-            className="fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-slate-200 z-50 flex flex-col shadow-2xl"
-            style={{ animation: "slideInLeft 0.25s ease" }}
+            className="mobile-drawer fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-slate-200 z-50 flex flex-col shadow-2xl"
+            style={{ animation: "slideInLeft 0.2s ease" }}
           >
             {/* Close button floats above SidebarInner's own logo header —
                 no separate duplicate header row anymore. Higher z-index +

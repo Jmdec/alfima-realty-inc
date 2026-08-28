@@ -18,7 +18,10 @@ import {
   Bell,
   BellOff,
 } from "lucide-react";
-import { enablePushNotifications } from "@/lib/push-client";
+import {
+  enablePushNotifications,
+  verifyPushSubscription,
+} from "@/lib/push-client";
 
 type SessionStatus = "active" | "resolved" | "pending";
 
@@ -255,9 +258,9 @@ export default function AdminChatPage() {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker
       .register("/sw.js")
-      .then(async (reg) => {
-        const sub = await reg.pushManager.getSubscription();
-        if (sub) setPushStatus("on");
+      .then(async () => {
+        const stillValid = await verifyPushSubscription();
+        setPushStatus(stillValid ? "on" : "idle");
       })
       .catch((err) => console.error("SW registration failed:", err));
   }, []);
@@ -278,8 +281,30 @@ export default function AdminChatPage() {
 
   const handleEnableNotifications = async () => {
     setPushStatus("loading");
-    const result = await enablePushNotifications();
-    setPushStatus(result.ok ? "on" : "error");
+    try {
+      const result = await enablePushNotifications();
+      setPushStatus(result.ok ? "on" : "error");
+    } catch (err) {
+      console.error("Push subscribe failed:", err);
+
+      // Fallback: the browser-side subscribe may have actually succeeded
+      // even though something else in the flow threw (e.g. the server save
+      // failed). Re-check reality instead of assuming total failure.
+      try {
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+          const sub = await reg?.pushManager.getSubscription();
+          if (sub) {
+            setPushStatus("on");
+            return;
+          }
+        }
+      } catch {
+        // ignore — fall through to error state below
+      }
+
+      setPushStatus("error");
+    }
   };
 
   const pollActiveSession = useCallback(async () => {
