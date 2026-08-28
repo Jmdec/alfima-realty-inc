@@ -439,11 +439,7 @@ export function PropertySearch({
             type="text"
             placeholder="Search by address, city, or keyword..."
             value={search}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSearch(value);
-              setCity(value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="w-full h-12 pl-10 pr-4 py-3 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/80 transition text-sm text-white placeholder-blue-300"
           />
