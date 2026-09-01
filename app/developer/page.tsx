@@ -387,8 +387,13 @@ function PropertiesPageInner() {
       if (sort && sort !== "priority") regParams.set("sort", sort);
 
       const devFetch = fetch(`/api/developers-properties?${devParams}`);
-      // Skip regular listings when a developer filter is active
-      const regFetch = devFilter
+      // Skip fetching individual (regular) listings whenever the user has
+      // actively searched (via PropertySearch) or picked a developer chip.
+      // Search results should surface developer properties only. On the
+      // default, unfiltered view, individual listings are still fetched and
+      // rendered below the developer section.
+      const isSearchOrDevFilterActive = !!filters || !!devFilter;
+      const regFetch = isSearchOrDevFilterActive
         ? Promise.resolve(null)
         : fetch(`/api/properties?${regParams}`);
 
