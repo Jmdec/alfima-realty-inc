@@ -1,0 +1,150 @@
+[33mcommit fc86c4598b6e4c14ca8e01893621ad7ccada3efe[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: infinitechraiza <infinitech.raiza@gmail.com>
+Date:   Fri Aug 28 15:20:57 2026 +0800
+
+    Fixed: developer tab in HeroSearch result cards.
+
+[33mcommit edc53879e20876487a5664224c41328b98555d42[m
+Merge: eea35b6 58d87f5
+Author: infinitechraiza <infinitech.raiza@gmail.com>
+Date:   Fri Aug 28 14:52:13 2026 +0800
+
+    Merge branch 'main' of https://github.com/Infinitech-Admin/alfima-fe
+
+[33mcommit eea35b66548085c787fd1f9c8e155d046febdd28[m
+Author: infinitechraiza <infinitech.raiza@gmail.com>
+Date:   Fri Aug 28 14:52:08 2026 +0800
+
+    Fixed partners slug, properties layout, estimated monthly computation, financing option, pin, and etc.
+
+[33mcommit 58d87f5ab1b8f1f7a0ab6d5f2037af495c58786b[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 11:02:42 2026 +0800
+
+    updated the email to sales
+
+[33mcommit 676b03f50a1e4e44ebdb029a743205fe48c32772[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 10:56:57 2026 +0800
+
+    fix broken codes on lib
+
+[33mcommit bb19801e12d68bb4cc442baf824dde01cc269666[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 10:51:24 2026 +0800
+
+    added logic aproach verifying database subscription
+
+[33mcommit fa5e11d9479d3ff5a7151395ddc97e20ea59e70c[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 10:11:47 2026 +0800
+
+    fix admin sidebar
+
+[33mcommit aad8226f560df32d5e70b8feb3ddb22f19d99009[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 09:40:30 2026 +0800
+
+    fix notifications
+
+[33mcommit bed9b8cdf6593ff9b702d9b2339c4ff73d531156[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Fri Aug 28 08:37:14 2026 +0800
+
+    added storage usage
+
+[33mcommit 6bd68520e44f995e4067b04778a94344aa61fc04[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 11:18:21 2026 +0800
+
+    Update property search options to remove '+' signs
+
+[33mcommit 361d8fed571c68c96ff3fa1866659604048cafd8[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 11:04:30 2026 +0800
+
+    Update RequestViewingModal.tsx
+
+[33mcommit fb700f8f53454bad77e12b8ec3272f7c17c9617b[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 11:00:37 2026 +0800
+
+    Update RequestViewingModal.tsx
+
+[33mcommit 09542bade68a94e7b89556bae78c90cd9314cd70[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 10:30:42 2026 +0800
+
+    Update property-details-page.tsx
+
+[33mcommit 8728e35ce48a0d4f980cea3fe5eb6b55c74fdf9a[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 10:17:02 2026 +0800
+
+    Update chatbot.tsx
+
+[33mcommit 08af2b9eab748b34a8fc4c9fe29b8621e6086038[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:57:32 2026 +0800
+
+    Update partner-developers-section.tsx
+
+[33mcommit 7026d5fd0c9ea244b5e3ec351de2473cd6da66b9[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:57:18 2026 +0800
+
+    Update OurPartners.tsx
+
+[33mcommit 5fc5b54f3b774e13a5942365f3e7f8a928c006bf[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:55:23 2026 +0800
+
+    Update page.tsx
+
+[33mcommit 86174b3c9666c9cebe91f18996bea53df077602e[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:48:16 2026 +0800
+
+    Update partner-developers-section.tsx
+
+[33mcommit 8b4bb95307e8226050bf9727ef00b51a4041dfb6[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:39:36 2026 +0800
+
+    Update property-details-page.tsx
+
+[33mcommit 595d3f6ab9ccfb6ba012d02cc85887baa4c8bb53[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:33:58 2026 +0800
+
+    Update properties-client.tsx
+
+[33mcommit 2c3e76e810c5be2fd846dd409bd9c0457fcb0dd5[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:29:20 2026 +0800
+
+    Update page.tsx
+
+[33mcommit 4f004d027e0068f7f34cf2316c1f6e3fbac53a3e[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:29:02 2026 +0800
+
+    Update FeaturedProperties.tsx
+
+[33mcommit 43847d1ed9f0127f4ee700d763880c70a130d202[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:28:39 2026 +0800
+
+    Update developer-property-card.tsx
+
+[33mcommit 8d29877199b86f98a6b25b04d26c203ca820af85[m
+Author: InfinitechCorp <infinitechcorp.ph@gmail.com>
+Date:   Wed Aug 26 09:27:50 2026 +0800
+
+    Update next.config.ts
+
+[33mcommit 984aeb6e7e03d733fbf875353820521be5f77f46[m
+Author: Jmdec <infinitech.justin2024@gmail.com>
+Date:   Tue Aug 25 15:15:33 2026 +0800
+
+    staging

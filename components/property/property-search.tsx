@@ -74,6 +74,15 @@ export function PropertySearch({
   );
   const initialMinPrice = searchParams.get("minPrice");
   const initialMaxPrice = searchParams.get("maxPrice");
+  // BUG FIX: this used to be hardcoded to "all" in handleSearch/handleReset
+  // below, regardless of what scope the page actually arrived with. A Hero
+  // "For Sale" search (agent-only, no ?scope param) would then have
+  // developer_properties silently mixed back in the moment this panel
+  // re-searched or reset — even though the user only asked for agent
+  // listings. Seed it from the URL instead, same pattern as every other
+  // field here, so this panel stays additive rather than force-widening
+  // the query scope.
+  const initialScope = searchParams.get("scope") ?? "";
   const hasInitialFilters = Boolean(
     searchParams.get("propertyType") ||
     initialMinPrice ||
@@ -85,6 +94,7 @@ export function PropertySearch({
   const [isExpanded, setIsExpanded] = useState(hasInitialFilters);
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const [listingType, setListingType] = useState<string>(initialListingType);
+  const [scope, setScope] = useState<string>(initialScope); // NEW
   const [type, setType] = useState<string>(
     () => searchParams.get("propertyType") ?? "",
   );
@@ -191,8 +201,12 @@ export function PropertySearch({
         // building a distinct city list and price range.
         params.append("per_page", "1000");
         params.append("status", "active");
-        // scope=all so developer_properties are included too, matching
-        // how the results page can include both sources.
+        // NOTE: this fetch is only used to populate the city dropdown and
+        // the min/max price bounds shown in this panel's UI — it is
+        // intentionally separate from the actual search request below,
+        // so it always looks across both agent and developer inventory
+        // regardless of the active scope. This does not affect which
+        // properties are returned by Search/Apply/Reset.
         params.append("scope", "all");
 
         // Scope the city list and price bounds to the selected listing
@@ -309,12 +323,15 @@ export function PropertySearch({
       // falsiness, since 0 is falsy as a number but a legit selection here.
       bedrooms: bedrooms !== "" ? parseInt(bedrooms) : undefined,
       city: city || undefined,
-      // this panel must always send scope=all, matching the Hero search
-      // bar — otherwise applying any filter here silently switches the
-      // backend from the merged agent+developer query to an agent-only
+      // BUG FIX: this used to always send "all", which force-widened
+      // every re-search from this panel into the merged agent+developer
       // query (see PropertyController::index — scope=all is what selects
-      // indexMerged over indexAgentOnly).
-      scope: "all",
+      // indexMerged over indexAgentOnly), even for a page that started
+      // out agent-only (e.g. a Hero "For Sale" search, which sends no
+      // scope at all). Send whatever scope the page is already in
+      // instead — this panel should refine the existing search, not
+      // silently broaden its source.
+      scope: scope || undefined,
     });
   };
 
@@ -330,9 +347,11 @@ export function PropertySearch({
     setMinPrice(String(priceBounds?.min ?? minPriceRange));
     setMaxPrice(String(priceBounds?.max ?? maxPriceRange));
     setBedrooms("");
-    // keep scope=all on reset too, so clearing filters still shows the
-    // full merged catalog instead of quietly narrowing to agent-only.
-    onSearch({ scope: "all" });
+    // BUG FIX: same as handleSearch above — reset must not force scope
+    // to "all" either. Clearing filters should return to the page's
+    // original scope (agent-only or merged, whichever it started as),
+    // not quietly widen it to include developer_properties.
+    onSearch({ scope: scope || undefined });
   };
 
   const cityPlaceholder = citiesLoading
@@ -351,7 +370,12 @@ export function PropertySearch({
               top: menuRect.top,
               left: menuRect.left,
               width: menuRect.width,
-              zIndex: 9999,
+              // Match HeroSearch's own portaled dropdown so this panel
+              // can't get buried behind other fixed/portaled overlays on
+              // the page (which was making it appear not to open, and
+              // swallowing clicks meant for the city buttons underneath).
+              zIndex: 99999,
+              pointerEvents: "auto",
             }}
             className="max-h-56 overflow-y-auto rounded-lg border border-blue-700 bg-blue-950/95 backdrop-blur-md shadow-xl
       [&::-webkit-scrollbar]:w-2
@@ -372,6 +396,12 @@ export function PropertySearch({
                     <button
                       type="button"
                       onClick={() => {
+                        // Confirming the typed value as-is should behave
+                        // the same as picking a city from the list below —
+                        // it's the user's explicit choice of location, so
+                        // it must supersede whatever's in the free-text
+                        // search box (see note on the city buttons below).
+                        setSearch("");
                         setCityMenuOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-blue-900/60 transition border-b border-blue-800"
@@ -385,6 +415,18 @@ export function PropertySearch({
                       key={c}
                       onClick={() => {
                         setCity(c);
+                        // BUG FIX: the top search box and this City field
+                        // are independent filters that get ANDed together
+                        // server-side. If `search` still has a stale value
+                        // (e.g. seeded from a HeroSearch navigation like
+                        // ?search=calamba&city=calamba, or typed earlier in
+                        // this same panel), picking a *different* city here
+                        // — e.g. Makati — would silently AND "calamba" text
+                        // search with "city = Makati" and return zero
+                        // results, looking like the picker "does nothing".
+                        // An explicit city selection should supersede any
+                        // leftover free-text search, not fight it.
+                        setSearch("");
                         setCityMenuOpen(false);
                       }}
                       className={`w-full text-left px-3 py-2 text-sm transition ${
@@ -420,11 +462,7 @@ export function PropertySearch({
             type="text"
             placeholder="Search by address, city, or keyword..."
             value={search}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSearch(value);
-              setCity(value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="w-full h-12 pl-10 pr-4 py-3 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/80 transition text-sm text-white placeholder-blue-300"
           />

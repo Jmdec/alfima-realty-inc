@@ -412,6 +412,9 @@ function PropertiesPageInner() {
   }, []);
 
   // ── Core fetch ────────────────────────────────────────────────────────────
+  // NOTE: This is the /developer page — it only ever fetches from
+  // /api/developers-properties. Regular (agent-owned) listings are never
+  // included here, regardless of filters — that's what /properties is for.
   const fetchProperties = async (
     filters?: any,
     page = 1,
@@ -427,85 +430,67 @@ function PropertiesPageInner() {
         per_page: String(PER_PAGE),
         status: "active",
       });
-      if (filters?.search) devParams.append("search", filters.search);
-      if (filters?.listingType)
+
+      if (filters?.search) {
+        devParams.append("search", filters.search);
+      }
+
+      if (filters?.city) {
+        devParams.append("city", filters.city);
+      }
+
+      if (filters?.listingType) {
         devParams.append(
           "listing_type",
           normalizeListingType(filters.listingType),
         );
-      if (filters?.type) devParams.append("property_type", filters.type);
-      if (devFilter) devParams.set("developer_name", devFilter);
-      if (sort && sort !== "priority") devParams.set("sort", sort);
+      }
 
-      const regParams = new URLSearchParams({
-        page: String(page),
-        per_page: String(PER_PAGE),
-        status: "active",
-      });
-      if (filters?.search) regParams.append("search", filters.search);
-      if (filters?.listingType)
-        regParams.append(
-          "listing_type",
-          normalizeListingType(filters.listingType),
-        );
-      if (filters?.type) regParams.append("property_type", filters.type);
-      if (sort && sort !== "priority") regParams.set("sort", sort);
+      if (filters?.type) {
+        devParams.append("property_type", filters.type);
+      }
 
-      const devFetch = fetch(`/api/developers-properties?${devParams}`);
-      // Skip regular listings when a developer filter is active
-      const regFetch = devFilter
-        ? Promise.resolve(null)
-        : fetch(`/api/properties?${regParams}`);
+      if (devFilter) {
+        devParams.set("developer_name", devFilter);
+      }
 
-      const [devRes, regRes] = await Promise.allSettled([devFetch, regFetch]);
+      if (sort && sort !== "priority") {
+        devParams.set("sort", sort);
+      }
 
       let devItems: any[] = [];
       let devMeta: PaginationMeta | null = null;
-      if (devRes.status === "fulfilled" && devRes.value?.ok) {
-        const d = await devRes.value.json();
-        devItems = (d.data ?? []).map((p: any) => ({
-          ...p,
-          _source: "developer" as const,
-        }));
-        devMeta = {
-          current_page: d.current_page,
-          last_page: d.last_page,
-          per_page: d.per_page,
-          total: d.total,
-        };
-      }
 
-      let regItems: any[] = [];
-      let regMeta: PaginationMeta | null = null;
-      if (
-        regRes.status === "fulfilled" &&
-        regRes.value !== null &&
-        regRes.value?.ok
-      ) {
-        const d = await regRes.value.json();
-        regItems = (d.data ?? []).map((p: any) => ({
-          ...p,
-          _source: "regular" as const,
-        }));
-        regMeta = {
-          current_page: d.current_page,
-          last_page: d.last_page,
-          per_page: d.per_page,
-          total: d.total,
-        };
+      try {
+        const devRes = await fetch(`/api/developers-properties?${devParams}`);
+        if (devRes.ok) {
+          const d = await devRes.json();
+          devItems = (d.data ?? []).map((p: any) => ({
+            ...p,
+            _source: "developer" as const,
+          }));
+          devMeta = {
+            current_page: d.current_page,
+            last_page: d.last_page,
+            per_page: d.per_page,
+            total: d.total,
+          };
+        }
+      } catch {
+        // fall through with devItems/devMeta at their defaults
       }
 
       let merged: any[];
       if (sort === "price_asc") {
-        merged = [...devItems, ...regItems].sort(
+        merged = [...devItems].sort(
           (a, b) => Number(a.price ?? 0) - Number(b.price ?? 0),
         );
       } else if (sort === "price_desc") {
-        merged = [...devItems, ...regItems].sort(
+        merged = [...devItems].sort(
           (a, b) => Number(b.price ?? 0) - Number(a.price ?? 0),
         );
       } else if (sort === "newest") {
-        merged = [...devItems, ...regItems].sort(
+        merged = [...devItems].sort(
           (a, b) =>
             new Date(b.created_at ?? 0).getTime() -
             new Date(a.created_at ?? 0).getTime(),
@@ -517,13 +502,13 @@ function PropertiesPageInner() {
         const devNormal = devItems.filter(
           (p) => p.priority == null || p.priority === 0,
         );
-        merged = [...devPriority, ...devNormal, ...regItems];
+        merged = [...devPriority, ...devNormal];
       }
 
       setProperties(merged);
       setDevPagination(devMeta);
-      setRegPagination(regMeta);
-      setCombinedTotal((devMeta?.total ?? 0) + (regMeta?.total ?? 0));
+      setRegPagination(null);
+      setCombinedTotal(devMeta?.total ?? 0);
     } catch (error) {
       console.error("Failed to fetch properties:", error);
       setProperties([]);
@@ -536,21 +521,41 @@ function PropertiesPageInner() {
   };
 
   const searchParamsString = searchParams.toString();
+
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
+
+    const city = urlParams.get("city") ?? "";
+    const search = urlParams.get("search") ?? "";
+    const listingType = urlParams.get("listingType") ?? "";
+    const type = urlParams.get("type") ?? "";
+    const minPrice = urlParams.get("minPrice") ?? "";
+    const maxPrice = urlParams.get("maxPrice") ?? "";
+    const bedrooms = urlParams.get("bedrooms") ?? "";
     const initialDev = urlParams.get("developer_name") ?? "";
+
+    const filters = {
+      city,
+      search,
+      listingType,
+      type,
+      minPrice,
+      maxPrice,
+      bedrooms,
+    };
+
+    const hasFilters = Object.values(filters).some(Boolean);
+
     setCurrentPage(1);
-    setActiveFilters(null);
+    setActiveFilters(hasFilters ? filters : null);
     setDeveloperFilter(initialDev);
     setSortBy("priority");
-    fetchProperties(null, 1, "priority", initialDev);
+
+    fetchProperties(hasFilters ? filters : null, 1, "priority", initialDev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString]);
 
-  const lastPage = Math.max(
-    devPagination?.last_page ?? 1,
-    regPagination?.last_page ?? 1,
-  );
+  const lastPage = devPagination?.last_page ?? 1;
   const isFiltered = !!(activeFilters || developerFilter);
   const activeFilterCount = [activeFilters, developerFilter].filter(
     Boolean,
@@ -910,7 +915,6 @@ function PropertiesPageInner() {
             </div>
           )}
 
-
           {/* Back to Home */}
           <div className="mb-4">
             <Link
@@ -921,133 +925,6 @@ function PropertiesPageInner() {
             </Link>
           </div>
 
-          {/* Source breakdown summary bar */}
-          {!loading && !developerFilter && (devPagination || regPagination) && (
-            <div
-              className="flex flex-col sm:flex-row items-stretch gap-0 mb-8 rounded-2xl overflow-hidden"
-              style={{
-                border: "1.5px solid rgba(192,57,43,0.35)",
-                background: "rgba(0,0,0,0.35)",
-              }}
-            >
-              <div
-                className="flex-1 flex items-center gap-5 px-7 py-5"
-                style={{
-                  background: "rgba(192,57,43,0.12)",
-                  borderRight: "1.5px solid rgba(192,57,43,0.25)",
-                }}
-              >
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{
-                    background: "rgba(192,57,43,0.28)",
-                    border: "1.5px solid rgba(192,57,43,0.45)",
-                  }}
-                >
-                  <Building2 className="w-6 h-6 text-red-300" />
-                </div>
-                <div>
-                  <p
-                    className="text-white font-black leading-none"
-                    style={{
-                      fontFamily: "Georgia, serif",
-                      fontSize: "2.25rem",
-                    }}
-                  >
-                    {(devPagination?.total ?? 0).toLocaleString()}
-                  </p>
-                  <p
-                    className="text-white text-sm font-black tracking-widest uppercase mt-1"
-                    style={{ fontFamily: "monospace" }}
-                  >
-                    Developer Listings
-                  </p>
-                  <p
-                    className="text-white/45 text-xs mt-1"
-                    style={{ fontFamily: "monospace" }}
-                  >
-                    Use filter above to narrow by developer
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className="flex items-center justify-center px-5 py-3 shrink-0"
-                style={{ background: "rgba(0,0,0,0.15)" }}
-              >
-                <span
-                  className="text-white/35 text-3xl font-black select-none"
-                  style={{ fontFamily: "Georgia, serif" }}
-                >
-                  +
-                </span>
-              </div>
-
-              <div
-                className="flex-1 flex items-center gap-5 px-7 py-5"
-                style={{
-                  background: "rgba(37,99,235,0.09)",
-                  borderLeft: "1.5px solid rgba(37,99,235,0.2)",
-                }}
-              >
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{
-                    background: "rgba(37,99,235,0.2)",
-                    border: "1.5px solid rgba(37,99,235,0.35)",
-                  }}
-                >
-                  <Home className="w-6 h-6 text-blue-300" />
-                </div>
-                <div>
-                  <p
-                    className="text-white font-black leading-none"
-                    style={{
-                      fontFamily: "Georgia, serif",
-                      fontSize: "2.25rem",
-                    }}
-                  >
-                    {(regPagination?.total ?? 0).toLocaleString()}
-                  </p>
-                  <p
-                    className="text-blue-200/80 text-sm font-black tracking-widest uppercase mt-1"
-                    style={{ fontFamily: "monospace" }}
-                  >
-                    Individual Listings
-                  </p>
-                  <p
-                    className="text-white/45 text-xs mt-1"
-                    style={{ fontFamily: "monospace" }}
-                  >
-                    Direct owner &amp; agent listings
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className="flex items-center justify-center px-8 py-5 shrink-0 border-l border-red-900/30"
-                style={{ background: "rgba(0,0,0,0.3)", minWidth: "110px" }}
-              >
-                <div className="text-center">
-                  <p
-                    className="text-red-400 font-black leading-none"
-                    style={{
-                      fontFamily: "Georgia, serif",
-                      fontSize: "2.75rem",
-                    }}
-                  >
-                    {combinedTotal.toLocaleString()}
-                  </p>
-                  <p
-                    className="text-white/50 text-sm font-black tracking-widest uppercase mt-1"
-                    style={{ fontFamily: "monospace" }}
-                  >
-                    Total
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
             <div className="flex items-center gap-3">
@@ -1170,9 +1047,6 @@ function PropertiesPageInner() {
               const devProps = properties
                 .filter((p) => p._source === "developer")
                 .sort(favSort);
-              const regProps = properties
-                .filter((p) => p._source === "regular")
-                .sort(favSort);
               const gridClass = `grid gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`;
 
               return (
@@ -1225,83 +1099,6 @@ function PropertiesPageInner() {
                         {devProps.map((p, idx) => (
                           <PropertyCard
                             key={`developer-${p.id}`}
-                            property={p}
-                            priority={idx < 3}
-                            featured={isFeaturedPriority(p.priority)}
-                            initialFavorite={
-                              favoriteKeys
-                                ? favoriteKeys.has(getFavoriteKey(p))
-                                : undefined
-                            }
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Divider */}
-                  {devProps.length > 0 && regProps.length > 0 && (
-                    <div className="flex items-center gap-4 my-8">
-                      <div
-                        className="flex-1 h-px"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                      />
-                      <span
-                        className="text-white/15 text-[10px] font-bold tracking-[0.3em] uppercase px-4"
-                        style={{ fontFamily: "monospace" }}
-                      >
-                        Also available
-                      </span>
-                      <div
-                        className="flex-1 h-px"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Individual Listings */}
-                  {regProps.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-4 mb-5">
-                        <div
-                          className="flex items-center gap-3 px-4 py-2 rounded-xl"
-                          style={{
-                            background: "rgba(37,99,235,0.12)",
-                            border: "1px solid rgba(37,99,235,0.22)",
-                          }}
-                        >
-                          <Home className="w-4 h-4 text-blue-400" />
-                          <span
-                            className="text-white font-black text-sm tracking-wide"
-                            style={{ fontFamily: "Georgia, serif" }}
-                          >
-                            Individual Listings
-                          </span>
-                          <span
-                            className="text-blue-300/70 font-bold text-xs px-2 py-0.5 rounded-full"
-                            style={{
-                              background: "rgba(37,99,235,0.25)",
-                              fontFamily: "monospace",
-                            }}
-                          >
-                            {regPagination?.total ?? regProps.length}
-                          </span>
-                        </div>
-                        <span
-                          className="text-white/20 text-[10px]"
-                          style={{ fontFamily: "monospace" }}
-                        >
-                          Direct owner &amp; agent listings
-                        </span>
-                        <div
-                          className="flex-1 h-px"
-                          style={{ background: "rgba(37,99,235,0.15)" }}
-                        />
-                      </div>
-                      <div className={gridClass}>
-                        {regProps.map((p, idx) => (
-                          <PropertyCard
-                            key={`regular-${p.id}`}
                             property={p}
                             priority={idx < 3}
                             featured={isFeaturedPriority(p.priority)}
