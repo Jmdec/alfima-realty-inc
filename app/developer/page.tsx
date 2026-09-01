@@ -222,8 +222,7 @@ function PreviewRow({
   );
 
   // Safely resolve image — handles string paths, object arrays, or missing
-  const rawImg =
-   p.images?.[0]?.url ?? p.thumbnail ?? "";
+  const rawImg = p.images?.[0]?.url ?? p.thumbnail ?? "";
   const imageUrl = resolveImageUrl(rawImg);
 
   const detailHref =
@@ -482,12 +481,34 @@ function PropertiesPageInner() {
   const searchParamsString = searchParams.toString();
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
+
+    const search = urlParams.get("search") ?? "";
+    const listingType = urlParams.get("listingType") ?? "";
+    // Support both `type` and `propertyType` — HeroSearch pushes
+    // `propertyType`, DeveloperHeroSearch's own onSearch callback here
+    // uses `type` (see handleSearch below), so accept either key.
+    const type = urlParams.get("propertyType") ?? urlParams.get("type") ?? "";
+    const minPrice = urlParams.get("minPrice") ?? "";
+    const maxPrice = urlParams.get("maxPrice") ?? "";
+    const bedrooms = urlParams.get("bedrooms") ?? "";
     const initialDev = urlParams.get("developer_name") ?? "";
+
+    const filters = {
+      search,
+      listingType,
+      type,
+      minPrice,
+      maxPrice,
+      bedrooms,
+    };
+
+    const hasFilters = Object.values(filters).some(Boolean);
+
     setCurrentPage(1);
-    setActiveFilters(null);
+    setActiveFilters(hasFilters ? filters : null);
     setDeveloperFilter(initialDev);
     setSortBy("priority");
-    fetchProperties(null, 1, "priority", initialDev);
+    fetchProperties(hasFilters ? filters : null, 1, "priority", initialDev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString]);
 

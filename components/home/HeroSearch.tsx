@@ -69,12 +69,6 @@ const BEDROOMS = [
   "5+ Bedrooms",
 ];
 
-<<<<<<< HEAD
-=======
-const TABS = ["For Sale", "For Rent", "Developer"] as const;
-type Tab = (typeof TABS)[number];
-
->>>>>>> c03657deb6809f111840c1cd3870131d81175045
 /* ── Dropdown — renders panel via Portal into document.body ─── */
 function FieldDropdown({
   label,
@@ -271,35 +265,9 @@ export function HeroSearch({
 
   const router = useRouter();
 
-<<<<<<< HEAD
   // Single source of truth for navigation — fires only on Enter or the
   // Search button, builds params from all current field values at once,
   // and pushes via next/navigation's router (no full page reload).
-=======
-  // Random per-mount field name so browsers can't match this input against
-  // any previously-saved autofill values for a field named e.g. "location"
-  // or "search" — this is what was producing the "Makati" / address
-  // suggestions dropdown. Combined with autoComplete="off" below.
-  const locationFieldName = useRef(
-    `loc-${Math.random().toString(36).slice(2)}`,
-  ).current;
-
-  // NOTE: There used to be an `updateCityUrl` helper wired to the location
-  // input's onChange that called `router.replace` on every keystroke — that
-  // caused typing to race with itself and go stale when the tab changed.
-  // That's gone. `handleSearch` below is the single source of truth for
-  // navigation — it only fires explicitly (Enter key or the Search button),
-  // builds a fresh, internally-consistent set of params from all current
-  // field values at once, and pushes it via next/navigation's router
-  // instead of a hard `window.location.href` reload. That means:
-  //   - the address bar updates immediately, client-side, on Enter/Search
-  //   - the destination page (e.g. /properties, which watches
-  //     `searchParams` and refetches whenever it changes) re-renders from
-  //     the new params without a full page reload
-  //   - `city` (mirrored from `location`, see below) always lands in the
-  //     pushed URL exactly once, in sync with `search`, instead of a stale
-  //     value surviving a race between typing and a hard navigation.
->>>>>>> c03657deb6809f111840c1cd3870131d81175045
   const handleSearch = () => {
     const [minPrice, maxPrice] = budget ? budget.split("-") : ["", ""];
     const listingType =
@@ -324,12 +292,9 @@ export function HeroSearch({
 
     if (location) {
       params.set("search", location);
-<<<<<<< HEAD
     }
     if (listingType !== "developer") {
       params.set("listingType", listingType);
-=======
->>>>>>> c03657deb6809f111840c1cd3870131d81175045
     }
 
     if (listingType === "developer") {
@@ -337,31 +302,18 @@ export function HeroSearch({
     } else {
       params.set("listingType", listingType); // "sale" or "rent"
     }
-<<<<<<< HEAD
     // FIX: backend's $param() helper looks for `property_type` or
     // `propertyType` — it never reads a plain `type` key, so this filter
     // was being silently ignored (or worse, matching nothing) before.
     if (propType) params.set("propertyType", propType);
-=======
-
-    if (propType) params.set("type", propType);
->>>>>>> c03657deb6809f111840c1cd3870131d81175045
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (bedrooms) params.set("bedrooms", bedrooms);
 
-<<<<<<< HEAD
     const destination =
       listingType === "developer" ? "/developer" : "/properties";
 
     router.push(`${destination}?${params.toString()}`);
-=======
-    if (listingType === "sale" || listingType === "rent") {
-      window.location.href = `/properties?${params.toString()}`;
-    } else if (listingType === "developer") {
-      window.location.href = `/developer?${params.toString()}`;
-    }
->>>>>>> c03657deb6809f111840c1cd3870131d81175045
   };
 
   const activeCount = [propType, budget, bedrooms].filter(Boolean).length;
@@ -791,7 +743,6 @@ export function HeroSearch({
                 />
                 <input
                   type="text"
-                  name={locationFieldName}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   onFocus={() => setFocused(true)}
