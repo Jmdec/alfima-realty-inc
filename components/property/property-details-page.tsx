@@ -3373,11 +3373,6 @@ export default function PropertyDetailsPage({
         if (propertyType === "residential") {
           return [
             {
-              label: "Resedential Type",
-              value: p.residential_type ?? "—",
-              key: "residential_type",
-            },
-            {
               label: "Bedroom Type",
               value: p.bedroom_type ?? "—",
               key: "bedroom_type",
@@ -3399,7 +3394,7 @@ export default function PropertyDetailsPage({
               key: "furnished",
             },
             {
-              label: "Parking Slots",
+              label: "Parking",
               value: p.parking_slots != null ? String(p.parking_slots) : "—",
               key: "parking_slots",
             },
@@ -3524,6 +3519,7 @@ export default function PropertyDetailsPage({
     setUnitLightboxIndex(
       (prev) => (prev - 1 + allUnitPhotos.length) % allUnitPhotos.length,
     );
+
   const currentUnitPhoto = allUnitPhotos[unitLightboxIndex];
 
   const priceDisplay = (() => {

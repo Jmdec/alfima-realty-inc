@@ -1563,3 +1563,16 @@ export function Chatbot() {
     </div>
   );
 }
+
+
+// 1. What personal information does our website forms collect?
+// 2. Where does the information go after a form is submitted, such as CRM, email, or website database?
+// 3. What cookies and tracking technologies are currently installed?
+// 4. Is Meta Pixel installed, and what events/data does it track? - it is in the layout we still deciding if we need to put in the chatbot and inquiries form
+// 5. Are Google Analytics, Google Tag Manager, or any other analytics/tracking tools installed? 
+// 6. Does any third party receive information from the website?
+// 7. Can you implement our Privacy Policy, form Privacy Notice, optional marketing consent, and any necessary cookie controls?
+
+
+
+// answer these questions using us chatbot

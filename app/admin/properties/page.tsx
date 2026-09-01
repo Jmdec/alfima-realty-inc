@@ -121,6 +121,7 @@ interface Property {
   images?: PropertyImage[];
   videos?: PropertyVideo[];
   unit_offerings?: PropertyUnitOffering[];
+  financing_option?: string | string[] | null;
 
   unit_offer_images?: Record<
     UnitPhotoCategory,
@@ -150,6 +151,15 @@ interface Toast {
   type: "success" | "error";
   message: string;
 }
+
+// Multi-select — an admin can choose any combination (none, one, two, or
+// all three) of these financing options for a property. Only relevant for
+// "For Sale" listings — rentals don't have financing options.
+const FINANCING_OPTIONS = [
+  { value: "in_house_financing", label: "In-House Financing" },
+  { value: "pag_ibig_financing", label: "PAG-IBIG Financing" },
+  { value: "bank_financing", label: "Bank Financing" },
+];
 
 const ACCEPT_ALL_IMAGES =
   "image/*,.avif,.heic,.heif,.jxl,.tiff,.tif,.bmp,.ico,.svg,.webp";
@@ -583,6 +593,26 @@ function ApprovalDialog({
       </div>
     </>
   );
+}
+
+// ─── Normalize Array Helper ───────────────────────────────────────────────────
+function normalizeArray(val: unknown): any[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {}
+    }
+    return trimmed
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -1053,6 +1083,10 @@ function PropertyFormModal({
       ? "predefined"
       : "custom",
   );
+  // ── Financing Options (multi-select — any combination allowed, Sale-only) ──
+  const [selectedFinancingOptions, setSelectedFinancingOptions] = useState<
+    string[]
+  >(normalizeArray(initial?.financing_option));
 
   const [form, setForm] = useState({
     title: initial?.title ?? "",
@@ -1338,13 +1372,14 @@ function PropertyFormModal({
       }
       // If priority is null/empty, don't send it at all - backend won't validate it
 
-      if (form.listing_type === "sale") {
-        metadataPayload.price = stripCommas(priceDisplay);
-        metadataPayload.price_per_month = null;
+      if (isSale) {
+        metadataPayload.financing_option = selectedFinancingOptions;
       } else {
-        metadataPayload.price_per_month = stripCommas(rentDisplay);
-        metadataPayload.price = null;
+        // Rentals don't support financing options — always clear any that
+        // might exist from a prior "sale" state on this property.
+        metadataPayload.financing_option = [];
       }
+      metadataPayload.financing_option_touched = true;
 
       const isValidGoogleMapsUrl = (url: string) => {
         const regex =
@@ -1892,6 +1927,50 @@ function PropertyFormModal({
                     </>
                   )}
                 </div>
+
+                {/* Financing Option — multi-select, "For Sale" listings only */}
+                {isSale && (
+                  <div>
+                    <label className={lbl}>
+                      Financing Option
+                      {selectedFinancingOptions.length > 0 && (
+                        <span className="ml-2 text-blue-500 normal-case font-normal tracking-normal text-xs">
+                          {selectedFinancingOptions.length} selected
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {FINANCING_OPTIONS.map((f) => {
+                        const isActive = selectedFinancingOptions.includes(
+                          f.value,
+                        );
+                        return (
+                          <button
+                            key={f.value}
+                            type="button"
+                            onClick={() =>
+                              setSelectedFinancingOptions((prev) =>
+                                isActive
+                                  ? prev.filter((v) => v !== f.value)
+                                  : [...prev, f.value],
+                              )
+                            }
+                            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                              isActive
+                                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
+                                : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Select all payment methods buyers can use.
+                    </p>
+                  </div>
+                )}
 
                 {/* Priority */}
                 <div>
@@ -2968,7 +3047,11 @@ function ViewModal({
   // local copy of the property that we can enrich with full details
   const [property, setProperty] = useState<Property>(initialProperty);
   const [loadingFull, setLoadingFull] = useState(true);
-
+  const financingOptions =
+    property.listing_type === "rent"
+      ? []
+      : normalizeArray(property.financing_option);
+      
   // fetch full property details (includes unit_offerings, amenities, etc.)
   useEffect(() => {
     let cancelled = false;
@@ -3266,6 +3349,25 @@ function ViewModal({
                         </div>
                       ))}
                     </div>
+  {/* Financing Options — Sale listings only */}
+                    {financingOptions.length > 0 && (
+                      <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 mb-3">
+                        <p className="text-xs text-slate-400 mb-2">
+                          Financing Options
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {financingOptions.map((v: string, i: number) => (
+                            <span
+                              key={i}
+                              className="text-xs px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700 font-medium"
+                            >
+                              {FINANCING_OPTIONS.find((f) => f.value === v)
+                                ?.label ?? v}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 mb-3">
                       <p className="text-xs text-slate-400 mb-1 flex items-center gap-1">
@@ -4243,3 +4345,5 @@ export default function AdminPropertiesPage() {
     </>
   );
 }
+
+

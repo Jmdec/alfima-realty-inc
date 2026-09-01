@@ -3,16 +3,13 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { PropertyCard } from "@/components/property/property-card";
 import { PropertySearch } from "@/components/property/property-search";
 import { useAuth } from "@/lib/store";
-import {
-  getFavoriteKey,
-  normalizeSource,
-} from "@/components/developer-property-card";
+import { normalizeSource } from "@/components/developer-property-card";
 import {
   Home,
   ArrowUpDown,
@@ -21,9 +18,10 @@ import {
   Grid3x3,
   LayoutList,
   Heart,
+  Landmark,
 } from "lucide-react";
 import { Property } from "@/lib/types";
-4;
+
 interface PaginationMeta {
   current_page: number;
   last_page: number;
@@ -46,6 +44,43 @@ const SORT_OPTIONS = [
 const BLUR_PLACEHOLDER =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+// ── Financing options (mirrors AdminDevelopersPage's FINANCING_OPTIONS) ──
+// Only relevant for "For Sale" developer-property listings.
+const FINANCING_OPTIONS = [
+  { value: "in_house_financing", label: "In-House Financing" },
+  { value: "pag_ibig_financing", label: "PAG-IBIG Financing" },
+  { value: "bank_financing", label: "Bank Financing" },
+];
+
+function financingLabel(value: string): string {
+  return FINANCING_OPTIONS.find((f) => f.value === value)?.label ?? value;
+}
+
+// financing_option can arrive as a real array, a JSON-encoded string,
+// a comma-separated string, or null/undefined — same normalization
+// pattern used for `amenities` on AdminDevelopersPage.
+function normalizeFinancingOptions(val: unknown): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean) as string[];
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+      } catch {
+        // fall through to comma-split
+      }
+    }
+    return trimmed
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function formatPrice(amount: number): string {
   if (amount >= 1_000_000_000)
     return `₱${(amount / 1_000_000_000).toFixed(2)}B`;
@@ -56,10 +91,10 @@ function formatPrice(amount: number): string {
 
 function normalizeListingType(raw: string): string {
   const v = raw.trim().toLowerCase();
-  if (v === "for sale" || v === "sale" || v === "buy") return "sale";
+  if (v === "for sale" || v === "sale") return "sale";
   if (v === "for rent" || v === "rent") return "rent";
   return raw;
-}
+} 
 
 // Priority rank helper for sorting — properties without a valid priority
 // (null/0/NaN) sink to the bottom via +Infinity. Mirrors app/developer/page.tsx
@@ -78,6 +113,26 @@ function thumbUrl(url: string, w = 400, h = 300): string {
     );
   }
   return url;
+}
+
+// Builds a URLSearchParams string from a filters object using the same
+// key names HeroSearch already writes when it navigates here (search,
+// city, listingType, type, minPrice, maxPrice, bedrooms, scope). Shared by
+// every handler below that changes filters, so the address bar always
+// reflects whatever is currently active — previously only the very first
+// navigation (HeroSearch's window.location.href) ever touched the URL;
+// every subsequent in-page PropertySearch search updated state/results
+// but left the URL frozen on the original params.
+function buildFiltersQueryString(f: any): string {
+  const params = new URLSearchParams();
+  if (f?.search) params.set("search", f.search);
+  if (f?.city) params.set("city", f.city);
+  if (f?.listingType) params.set("listingType", f.listingType);
+  if (f?.type) params.set("type", f.type);
+  if (f?.bedrooms !== undefined && f?.bedrooms !== null && f?.bedrooms !== "")
+    params.set("bedrooms", String(f.bedrooms));
+  if (f?.scope) params.set("scope", f.scope);
+  return params.toString();
 }
 
 // ── Stat Ticker ───────────────────────────────────────────────────────────────
@@ -218,6 +273,10 @@ interface PreviewProperty {
   address?: string;
   _source?: string;
   source?: string;
+  // Only meaningful for developer_property sale listings — array, JSON
+  // string, comma-separated string, or null/undefined. See
+  // normalizeFinancingOptions().
+  financing_option?: string | string[] | null;
 }
 
 interface FavoriteRecord {
@@ -247,13 +306,6 @@ function PreviewRow({
   const favoritePropertyId =
     source === "developer_property" ? (p.raw_id ?? p.id) : p.id;
 
-  // FIX: this always linked to `/property/${p.id}`, even for developer-
-  // sourced rows whose `id` is a prefixed string like "developer-307".
-  // That produced broken hrefs like /property/developer-307 instead of
-  // /developer/307. Route developer-sourced rows to /developer/{id},
-  // everything else to /property/{id} — same logic PropertyCard already
-  // uses elsewhere, and the same `source`/`raw_id` values this component
-  // was already computing for the favorites logic above.
   const detailHref =
     source === "developer_property"
       ? `/developer/${p.raw_id ?? p.id}`
@@ -402,6 +454,13 @@ function PreviewRow({
     isRent ? (p.price_per_month ?? p.price ?? 0) : (p.price ?? 0),
   );
 
+  // Financing options only ever apply to "For Sale" developer-property
+  // listings — mirrors the guard used on AdminDevelopersPage's edit form
+  // and its ViewModal.
+  const financingLabels = isRent
+    ? []
+    : normalizeFinancingOptions(p.financing_option).map(financingLabel);
+
   const rawImageUrl = p.images?.[0]?.url ?? p.thumbnail ?? "";
   const absoluteImageUrl = rawImageUrl.startsWith("http")
     ? rawImageUrl
@@ -472,6 +531,14 @@ function PreviewRow({
             {p.address}
           </p>
         )}
+
+        {/* Financing options badge — sale listings only */}
+        {financingLabels.length > 0 && (
+          <p className="text-white/35 text-[10px] mt-0.5 flex items-center gap-1 line-clamp-1">
+            <Landmark className="w-2.5 h-2.5 shrink-0 text-emerald-400/70" />
+            {financingLabels.join(" · ")}
+          </p>
+        )}
       </div>
 
       {user && (
@@ -496,8 +563,20 @@ function PreviewRow({
   );
 }
 
+// Builds the same "source:id" key format used everywhere favorites are
+// toggled/stored (see PropertyCard/PreviewRow's favoritePropertyId), so the
+// sort-favorites-first comparison below always matches what's actually in
+// favoriteKeys. Replaces the previously-imported getFavoriteKey, which
+// didn't apply the raw_id substitution for developer-sourced listings.
+function computeFavoriteKey(p: any): string {
+  const source = normalizeSource(p._source ?? p.source ?? "property");
+  const id = source === "developer_property" ? (p.raw_id ?? p.id) : p.id;
+  return `${source}:${id}`;
+}
+
 // ── Inner page ────────────────────────────────────────────────────────────────
 function PropertiesPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [properties, setProperties] = useState<any[]>([]);
@@ -527,8 +606,15 @@ function PropertiesPageInner() {
           return;
         }
 
-        const favorites: unknown =
-          (await res.json())?.data ?? (await res.json());
+        // API returns a plain array (see PropertyCard/PreviewRow's own
+        // favorites fetch) — NOT { data: [...] }. Previously this called
+        // res.json() twice to check for a .data wrapper, which throws on
+        // the second call since a Response body can only be read once;
+        // that thrown error was silently caught below and always produced
+        // an empty Set, so favorited properties never actually sorted
+        // first even though the sort comparator itself was correct.
+        const favorites: unknown = await res.json();
+
         if (!Array.isArray(favorites)) {
           if (!cancelled) setFavoriteKeys(new Set());
           return;
@@ -561,7 +647,13 @@ function PropertiesPageInner() {
       params.append("per_page", "12");
       params.append("status", "active");
 
-      if (filters?.search) params.append("search", filters.search);
+      if (filters?.search) {
+        params.append("search", filters.search);
+      }
+
+      if (filters?.city) {
+        params.append("city", filters.city);
+      }
       if (filters?.name) params.append("name", filters.name);
       if (filters?.listingType)
         params.append(
@@ -577,14 +669,7 @@ function PropertiesPageInner() {
       // NOTE: "bedrooms" can arrive as either a label string from HeroSearch
       // ("3 Bedrooms" / "Studio" / "5+ Bedrooms") or a plain number from the
       // in-page PropertySearch filter panel (0 = Studio, 1-5 = "N+"). Do NOT
-      // coerce it with Number()/String() truthiness checks:
-      //  - Number("3 Bedrooms") is NaN, which serializes to the literal
-      //    string "NaN" and silently disables the developer-table bedroom
-      //    filter server-side (see PropertyController::indexMerged).
-      //  - `if (filters?.bedrooms)` treats the number 0 (Studio) as falsy
-      //    and drops the filter entirely, so selecting "Studio" showed
-      //    every property instead of just studios.
-      // A plain undefined/null/empty-string check avoids both problems.
+      // coerce it with Number()/String() truthiness checks — see prior notes.
       if (
         filters?.bedrooms !== undefined &&
         filters?.bedrooms !== null &&
@@ -593,10 +678,6 @@ function PropertiesPageInner() {
         params.append("bedrooms", String(filters.bedrooms));
 
       if (filters?.city) params.append("city", filters.city);
-      // Forward scope=all so results include developer_properties too —
-      // previously dropped here even though it was present in the URL,
-      // because this function rebuilds params from `filters` rather than
-      // passing the URL query string straight through.
       if (filters?.scope) params.append("scope", filters.scope);
       if (sort && sort !== "priority") params.set("sort", sort);
 
@@ -604,14 +685,6 @@ function PropertiesPageInner() {
       if (!res.ok) throw new Error("Failed to fetch");
 
       const data = await res.json();
-      // FIX: this used to map every row to `_source: "regular"`,
-      // unconditionally overwriting the real value the backend sent
-      // (source: "agent" | "developer" — see
-      // PropertyController::transformMergedCollection). PropertyCard reads
-      // `_source` first when deciding the detail-page route, so every card
-      // — including developer-sourced ones — was being treated as a plain
-      // "property" and linked to /properties/developer-523 instead of
-      // /developer/523. Pass the real source through unchanged.
       setProperties(
         (data.data ?? []).map((p: any) => ({ ...p, _source: p.source })),
       );
@@ -630,6 +703,14 @@ function PropertiesPageInner() {
     }
   };
 
+  // ── URL is the single source of truth for filters/page ──────────────────
+  // Any change to filters (search box, PropertySearch panel, sort, page,
+  // clear) goes through router.push/replace below, which updates
+  // searchParamsString, which re-runs this effect and re-fetches. This is
+  // also what keeps the address bar in sync with in-page searches — before
+  // this fix, only the very first HeroSearch navigation (a full
+  // window.location.href) ever touched the URL; subsequent PropertySearch
+  // searches updated state/results directly and left the URL stale.
   const searchParamsString = searchParams.toString();
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
@@ -643,9 +724,9 @@ function PropertiesPageInner() {
     const maxPrice = urlParams.get("maxPrice");
     const bedrooms = urlParams.get("bedrooms");
     const city = urlParams.get("city");
-    // Was previously never read from the URL, so a Hero search that
-    // navigated here with ?scope=all lost the flag at this step.
     const scope = urlParams.get("scope");
+    const page = urlParams.get("page");
+    const sort = urlParams.get("sort");
 
     if (listingType) initialFilters.listingType = listingType;
     if (search) initialFilters.search = search;
@@ -653,21 +734,18 @@ function PropertiesPageInner() {
     if (type) initialFilters.type = type;
     if (minPrice) initialFilters.minPrice = Number(minPrice);
     if (maxPrice) initialFilters.maxPrice = Number(maxPrice);
-    // FIX: keep the raw label string ("3 Bedrooms", "Studio", "5+ Bedrooms").
-    // This used to be Number(bedrooms), which is NaN for every valid value
-    // this field can hold, and caused the developer-inventory bedroom
-    // filter to be silently skipped server-side (see note in
-    // fetchProperties above for the full mechanism).
     if (bedrooms) initialFilters.bedrooms = bedrooms;
     if (city) initialFilters.city = city;
     if (scope) initialFilters.scope = scope;
 
     const hasFilters = Object.keys(initialFilters).length > 0;
+    const pageNum = page ? Number(page) : 1;
+    const sortVal = sort ?? "priority";
 
-    setCurrentPage(1);
+    setCurrentPage(pageNum);
     setActiveFilters(hasFilters ? initialFilters : null);
-    setSortBy("priority");
-    fetchProperties(hasFilters ? initialFilters : null, 1, "priority");
+    setSortBy(sortVal);
+    fetchProperties(hasFilters ? initialFilters : null, pageNum, sortVal);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString]);
 
@@ -675,28 +753,37 @@ function PropertiesPageInner() {
   const lastPage = pagination?.last_page ?? 1;
   const isFiltered = !!activeFilters;
 
+  // Pushes a new URL built from the given filters/page/sort. The
+  // searchParamsString effect above picks up the change and re-fetches —
+  // handlers no longer call fetchProperties directly, so there's a single
+  // fetch per user action instead of state-update + fetch + a redundant
+  // URL-triggered refetch.
+  const pushFilters = (f: any, page = 1, sort = sortBy) => {
+    const qs = buildFiltersQueryString(f);
+    const params = new URLSearchParams(qs);
+    if (page > 1) params.set("page", String(page));
+    if (sort && sort !== "priority") params.set("sort", sort);
+    const finalQs = params.toString();
+    router.push(finalQs ? `/properties?${finalQs}` : "/properties", {
+      scroll: false,
+    });
+  };
+
   const handleSearch = (f: any) => {
-    setActiveFilters(f);
-    setCurrentPage(1);
-    fetchProperties(f, 1, sortBy);
+    pushFilters(f, 1, sortBy);
   };
 
   const handleSort = (v: string) => {
-    setSortBy(v);
-    setCurrentPage(1);
-    fetchProperties(activeFilters, 1, v);
+    pushFilters(activeFilters, 1, v);
   };
 
   const handlePageChange = (p: number) => {
-    setCurrentPage(p);
-    fetchProperties(activeFilters, p, sortBy);
+    pushFilters(activeFilters, p, sortBy);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleClearFilters = () => {
-    setActiveFilters(null);
-    setCurrentPage(1);
-    fetchProperties(null, 1, sortBy);
+    router.push("/properties", { scroll: false });
   };
 
   return (
@@ -894,8 +981,6 @@ function PropertiesPageInner() {
       {/* ── Results ── */}
       <section className="py-10 bg-gradient-to-t from-[#8b1a1a]/90 from-[20%] to-red-800/30 to-[100%]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Toolbar */}
-
           {/* Back to Home */}
           <div className="mb-4">
             <Link
@@ -1028,8 +1113,8 @@ function PropertiesPageInner() {
                 {properties
                   .slice()
                   .sort((a, b) => {
-                    const aKey = getFavoriteKey(a);
-                    const bKey = getFavoriteKey(b);
+                    const aKey = computeFavoriteKey(a);
+                    const bKey = computeFavoriteKey(b);
                     const aFav = favoriteKeys?.has(aKey) ?? false;
                     const bFav = favoriteKeys?.has(bKey) ?? false;
 
@@ -1043,7 +1128,7 @@ function PropertiesPageInner() {
                       priority={idx < 3}
                       initialIsFavorite={
                         favoriteKeys
-                          ? favoriteKeys.has(getFavoriteKey(p))
+                          ? favoriteKeys.has(computeFavoriteKey(p))
                           : undefined
                       }
                     />

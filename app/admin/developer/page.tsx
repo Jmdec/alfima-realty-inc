@@ -358,7 +358,8 @@ const BEDROOM_TYPES = [
 ];
 
 // Multi-select — an admin can choose any combination (none, one, two, or
-// all three) of these financing options for a property.
+// all three) of these financing options for a property. Only relevant for
+// "For Sale" listings — rentals don't have financing options.
 const FINANCING_OPTIONS = [
   { value: "in_house_financing", label: "In-House Financing" },
   { value: "pag_ibig_financing", label: "PAG-IBIG Financing" },
@@ -1129,7 +1130,7 @@ function PropertyFormModal({
     normalizeArray(initial?.amenities),
   );
 
-  // ── Financing Options (multi-select — any combination allowed) ──
+  // ── Financing Options (multi-select — any combination allowed, Sale-only) ──
   const [selectedFinancingOptions, setSelectedFinancingOptions] = useState<
     string[]
   >(normalizeArray(initial?.financing_option));
@@ -1634,11 +1635,14 @@ function PropertyFormModal({
       if (isSale) fd.append("price", stripCommas(priceDisplay));
       else fd.append("price_per_month", stripCommas(rentDisplay));
 
-      // ── Financing Options (multi-select) ──
+      // ── Financing Options (multi-select, Sale listings only) ──
       // Sent as a repeated array field, same convention as amenities[].
-      selectedFinancingOptions.forEach((f) =>
-        fd.append("financing_option[]", f),
-      );
+      // Only relevant to "For Sale" properties — never sent for rentals.
+      if (isSale) {
+        selectedFinancingOptions.forEach((f) =>
+          fd.append("financing_option[]", f),
+        );
+      }
 
       selectedAmenities.forEach((a) => fd.append("amenities[]", a));
 
@@ -1866,7 +1870,13 @@ function PropertyFormModal({
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setF("listing_type", t)}
+                        onClick={() => {
+                          setF("listing_type", t);
+                          // Financing options only apply to "For Sale" —
+                          // clear any selection when switching to rent so a
+                          // stale selection never gets silently submitted.
+                          if (t === "rent") setSelectedFinancingOptions([]);
+                        }}
                         className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${
                           form.listing_type === t
                             ? t === "sale"
@@ -2017,47 +2027,49 @@ function PropertyFormModal({
                   </p>
                 </div>
 
-                {/* Financing Option — multi-select */}
-                <div>
-                  <label className={lbl}>
-                    Financing Option
-                    {selectedFinancingOptions.length > 0 && (
-                      <span className="ml-2 text-blue-500 normal-case font-normal tracking-normal text-xs">
-                        {selectedFinancingOptions.length} selected
-                      </span>
-                    )}
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {FINANCING_OPTIONS.map((f) => {
-                      const isActive = selectedFinancingOptions.includes(
-                        f.value,
-                      );
-                      return (
-                        <button
-                          key={f.value}
-                          type="button"
-                          onClick={() =>
-                            setSelectedFinancingOptions((prev) =>
+                {/* Financing Option — multi-select, "For Sale" listings only */}
+                {isSale && (
+                  <div>
+                    <label className={lbl}>
+                      Financing Option
+                      {selectedFinancingOptions.length > 0 && (
+                        <span className="ml-2 text-blue-500 normal-case font-normal tracking-normal text-xs">
+                          {selectedFinancingOptions.length} selected
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {FINANCING_OPTIONS.map((f) => {
+                        const isActive = selectedFinancingOptions.includes(
+                          f.value,
+                        );
+                        return (
+                          <button
+                            key={f.value}
+                            type="button"
+                            onClick={() =>
+                              setSelectedFinancingOptions((prev) =>
+                                isActive
+                                  ? prev.filter((v) => v !== f.value)
+                                  : [...prev, f.value],
+                              )
+                            }
+                            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
                               isActive
-                                ? prev.filter((v) => v !== f.value)
-                                : [...prev, f.value],
-                            )
-                          }
-                          className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
-                            isActive
-                              ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
-                              : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
-                          }`}
-                        >
-                          {f.label}
-                        </button>
-                      );
-                    })}
+                                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
+                                : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Select all payment methods buyers can use.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Select all payment methods buyers/tenants can use.
-                  </p>
-                </div>
+                )}
 
                 {/* Priority */}
                 <div>
@@ -2952,7 +2964,7 @@ function PropertyFormModal({
                   {isSale ? "For Sale" : "For Rent"}
                   {isSale && priceDisplay ? ` — ₱${priceDisplay}` : ""}
                   {!isSale && rentDisplay ? ` — ₱${rentDisplay}/mo` : ""}
-                  {selectedFinancingOptions.length > 0
+                  {isSale && selectedFinancingOptions.length > 0
                     ? ` · ${selectedFinancingOptions
                         .map(
                           (v) =>
@@ -3086,7 +3098,12 @@ function ViewModal({
   };
 
   const amenities = normalizeArray(property.amenities);
-  const financingOptions = normalizeArray(property.financing_option);
+  // Financing options only ever apply to Sale listings — guard the display
+  // in case older rent records still carry a leftover value.
+  const financingOptions =
+    property.listing_type === "rent"
+      ? []
+      : normalizeArray(property.financing_option);
   const images = normalizeArray(property.images);
   const videos = normalizeArray(property.videos);
   const tags = normalizeTags(property.tags);
@@ -3262,7 +3279,7 @@ function ViewModal({
                       </div>
                     </div>
 
-                    {/* Financing Options — multi-select display */}
+                    {/* Financing Options — Sale listings only */}
                     {financingOptions.length > 0 && (
                       <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 mb-3">
                         <p className="text-xs text-slate-400 mb-2">

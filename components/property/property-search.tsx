@@ -380,7 +380,12 @@ export function PropertySearch({
               top: menuRect.top,
               left: menuRect.left,
               width: menuRect.width,
-              zIndex: 9999,
+              // Match HeroSearch's own portaled dropdown so this panel
+              // can't get buried behind other fixed/portaled overlays on
+              // the page (which was making it appear not to open, and
+              // swallowing clicks meant for the city buttons underneath).
+              zIndex: 99999,
+              pointerEvents: "auto",
             }}
             className="max-h-56 overflow-y-auto rounded-lg border border-blue-700 bg-blue-950/95 backdrop-blur-md shadow-xl
       [&::-webkit-scrollbar]:w-2
@@ -401,6 +406,12 @@ export function PropertySearch({
                     <button
                       type="button"
                       onClick={() => {
+                        // Confirming the typed value as-is should behave
+                        // the same as picking a city from the list below —
+                        // it's the user's explicit choice of location, so
+                        // it must supersede whatever's in the free-text
+                        // search box (see note on the city buttons below).
+                        setSearch("");
                         setCityMenuOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-blue-900/60 transition border-b border-blue-800"
@@ -414,6 +425,18 @@ export function PropertySearch({
                       key={c}
                       onClick={() => {
                         setCity(c);
+                        // BUG FIX: the top search box and this City field
+                        // are independent filters that get ANDed together
+                        // server-side. If `search` still has a stale value
+                        // (e.g. seeded from a HeroSearch navigation like
+                        // ?search=calamba&city=calamba, or typed earlier in
+                        // this same panel), picking a *different* city here
+                        // — e.g. Makati — would silently AND "calamba" text
+                        // search with "city = Makati" and return zero
+                        // results, looking like the picker "does nothing".
+                        // An explicit city selection should supersede any
+                        // leftover free-text search, not fight it.
+                        setSearch("");
                         setCityMenuOpen(false);
                       }}
                       className={`w-full text-left px-3 py-2 text-sm transition ${

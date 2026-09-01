@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import {
   Search,
   MapPin,
@@ -40,6 +41,16 @@ const BEDROOMS = [
 
 const TABS = ["For Sale", "For Rent", "Developer"] as const;
 type Tab = (typeof TABS)[number];
+
+// Strips diacritics and case so "Baguio" matches "baguio" / "bagui" the
+// same way PropertySearch's City combobox already does — kept identical
+// on purpose so both fields behave the same way for the same input.
+const normalizeText = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 
 /* ── Dropdown — renders panel via Portal into document.body ─── */
 function FieldDropdown({
@@ -232,6 +243,193 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
   const [focused, setFocused] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const router = useRouter();
+
+  // ── Live city autocomplete for the location input ──────────────
+  // Mirrors the City combobox in PropertySearch: a flat list of distinct
+  // city names fetched once, then substring-matched live against
+  // whatever's typed here (letter-by-letter, not whole-word).
+  const [cities, setCities] = useState<string[]>([]);
+  const [locSuggestOpen, setLocSuggestOpen] = useState(false);
+  const locFieldRef = useRef<HTMLDivElement>(null);
+  const locSuggestPanelRef = useRef<HTMLDivElement>(null);
+  const [locCoords, setLocCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  // Fetch the distinct city list once on mount. Intentionally
+  // scope=all and no listing_type filter — this is just for
+  // suggestions, so it should offer every known city regardless of
+  // which tab (Buy/Rent/Developer) is currently active, and regardless
+  // of the listing_type the eventual search will use.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCities = async () => {
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          per_page: "1000",
+          status: "active",
+          scope: "all",
+        });
+        const res = await fetch(`/api/properties?${params}`);
+        if (!res.ok) throw new Error("Failed to fetch properties");
+        const data = await res.json();
+        if (cancelled) return;
+
+        const rows: any[] = Array.isArray(data?.data) ? data.data : [];
+        const extracted = rows
+          .map((p) => p?.city ?? p?.City ?? "")
+          .filter(
+            (c): c is string => typeof c === "string" && c.trim() !== "",
+          );
+
+        setCities(
+          Array.from(new Set(extracted)).sort((a, b) => a.localeCompare(b)),
+        );
+      } catch (err) {
+        console.error("Failed to load city suggestions:", err);
+      }
+    };
+
+    loadCities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateLocCoords = () => {
+    const el = locFieldRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setLocCoords({
+      top: r.bottom + window.scrollY + 8,
+      left: r.left + window.scrollX,
+      width: r.width,
+    });
+  };
+
+  // Recompute suggestions live off the same `location` state the input
+  // already uses — every keystroke re-filters, same as PropertySearch's
+  // City field. Substring match (normalized), not whole-word.
+  const filteredLocationSuggestions =
+    location.trim() === ""
+      ? []
+      : cities
+          .filter((c) =>
+            normalizeText(c).includes(normalizeText(location)),
+          )
+          .sort((a, b) => {
+            const q = normalizeText(location);
+            const aStarts = normalizeText(a).startsWith(q);
+            const bStarts = normalizeText(b).startsWith(q);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+            return a.localeCompare(b);
+          })
+          .slice(0, 8);
+
+  // Close on outside click / Escape — same pattern as PropertySearch's
+  // city menu, since this panel is also portaled to document.body and
+  // can't rely on locFieldRef alone to contain clicks on itself.
+  useEffect(() => {
+    if (!locSuggestOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideField = locFieldRef.current?.contains(target);
+      const insidePanel = locSuggestPanelRef.current?.contains(target);
+      if (!insideField && !insidePanel) {
+        setLocSuggestOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLocSuggestOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [locSuggestOpen]);
+
+  const [locMounted, setLocMounted] = useState(false);
+  useEffect(() => setLocMounted(true), []);
+
+  const locationSuggestPanel =
+    locSuggestOpen &&
+    locMounted &&
+    location.trim() !== "" &&
+    filteredLocationSuggestions.length > 0
+      ? createPortal(
+          <div
+            ref={locSuggestPanelRef}
+            style={{
+              position: "absolute",
+              top: locCoords.top,
+              left: locCoords.left,
+              width: locCoords.width,
+              background: "#fff",
+              borderRadius: 14,
+              boxShadow:
+                "0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
+              border: "1px solid rgba(0,0,0,0.06)",
+              zIndex: 99999,
+              maxHeight: 260,
+              overflowY: "auto",
+              animation: "hs2-dropIn 0.18s ease",
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {filteredLocationSuggestions.map((c) => (
+              <div
+                key={c}
+                style={{
+                  padding: "10px 16px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: "#374151",
+                  cursor: "pointer",
+                  transition: "background 0.12s",
+                }}
+                onClick={() => {
+                  setLocation(c);
+                  setLocSuggestOpen(false);
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "#f9fafb";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+                }}
+              >
+                {c}
+              </div>
+            ))}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  // NOTE: There used to be an `updateCityUrl` helper wired to the location
+  // input's onChange that called `router.replace` on every keystroke — that
+  // caused typing to race with itself and go stale when the tab changed.
+  // That's gone. `handleSearch` below is the single source of truth for
+  // navigation — it only fires explicitly (Enter key or the Search button),
+  // builds a fresh, internally-consistent set of params from all current
+  // field values at once, and pushes it via next/navigation's router
+  // instead of a hard `window.location.href` reload. That means:
+  //   - the address bar updates immediately, client-side, on Enter/Search
+  //   - the destination page (e.g. /properties, which watches
+  //     `searchParams` and refetches whenever it changes) re-renders from
+  //     the new params without a full page reload
+  //   - `city` (mirrored from `location`, see below) always lands in the
+  //     pushed URL exactly once, in sync with `search`, instead of a stale
+  //     value surviving a race between typing and a hard navigation.
   const handleSearch = () => {
     const [minPrice, maxPrice] = budget ? budget.split("-") : ["", ""];
     const listingType =
@@ -242,7 +440,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           : activeTab === "Developer"
             ? "developer"
             : "";
-
+        
     onSearch({
       search: location,
       // Also pass the typed text as `city` — the input's own placeholder
@@ -250,7 +448,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
       // but the properties page only had a generic `search` param wired
       // up, which searched title/description and could miss a plain city
       // name. Sending both lets the backend match on either.
-      city: location,
+      // city: location,
       listingType,
       type: propType,
       minPrice,
@@ -262,24 +460,26 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
 
     if (location) {
       params.set("search", location);
-      params.set("city", location);
+      // params.set("city", location);
     }
-    listingType !== "developer" ? params.set("listingType", listingType) : null;
+    if (listingType !== "developer") {
+      params.set("listingType", listingType);
+    }
     if (listingType === "developer") {
       params.set("scope", "all");
     }
-    // which is "type" — see the FIX comment there.
     if (propType) params.set("type", propType);
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (bedrooms) params.set("bedrooms", bedrooms);
 
-    if (listingType === "sale")
-      window.location.href = `/properties?${params.toString()}`;
-    if (listingType === "rent")
-      window.location.href = `/properties?${params.toString()}`;
-    if (listingType === "developer")
-      window.location.href = `/developer?${params.toString()}`;
+    const destination =
+      listingType === "developer" ? "/developer" : "/properties";
+
+    // Client-side navigation — updates the URL/slug params live without a
+    // full-page reload, and lets the destination page's own searchParams
+    // effect pick up the change and refetch.
+    router.push(`${destination}?${params.toString()}`);
   };
 
   const activeCount = [propType, budget, bedrooms].filter(Boolean).length;
@@ -692,7 +892,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           <div className="hs2-card">
             {/* Top row: location + (mobile: filters toggle) + search btn */}
             <div className="hs2-top-row">
-              <div className="hs2-location">
+              <div className="hs2-location" ref={locFieldRef}>
                 <MapPin
                   size={16}
                   color={focused ? "#c41e3a" : "#c4c9d4"}
@@ -701,8 +901,18 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
                 <input
                   type="text"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onFocus={() => setFocused(true)}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    setLocSuggestOpen(true);
+                    updateLocCoords();
+                  }}
+                  onFocus={() => {
+                    setFocused(true);
+                    if (location.trim() !== "") {
+                      setLocSuggestOpen(true);
+                      updateLocCoords();
+                    }
+                  }}
                   onBlur={() => setFocused(false)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder="City, neighborhood, or address…"
@@ -710,11 +920,15 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
                 {location && (
                   <button
                     className="hs2-clear-btn"
-                    onClick={() => setLocation("")}
+                    onClick={() => {
+                      setLocation("");
+                      setLocSuggestOpen(false);
+                    }}
                   >
                     ✕
                   </button>
                 )}
+                {locationSuggestPanel}
               </div>
 
               <div className="hs2-sep" />
