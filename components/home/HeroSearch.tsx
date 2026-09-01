@@ -440,10 +440,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           : activeTab === "Developer"
             ? "developer"
             : "";
-          : activeTab === "Developer"
-            ? "developer"
-            : "";
-
+        
     onSearch({
       search: location,
       // Also pass the typed text as `city` — the input's own placeholder
