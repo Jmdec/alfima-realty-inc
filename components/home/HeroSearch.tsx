@@ -276,7 +276,7 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
       // but the properties page only had a generic `search` param wired
       // up, which searched title/description and could miss a plain city
       // name. Sending both lets the backend match on either.
-      city: location,
+      // city: location,
       listingType,
       type: propType,
       minPrice,
@@ -288,7 +288,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
 
     if (location) {
       params.set("search", location);
-      params.set("city", location);
     }
     if (listingType !== "developer") {
       params.set("listingType", listingType);
