@@ -461,8 +461,7 @@ export function PropertyCard({
             className="font-bold text-xl leading-snug line-clamp-2 text-white min-h-[40px]"
             title={property.title}
           >
-            {property.title}sadsadsadas ashdgashjdg asdjasgdjasd
-            sahjdgsahjgdhjas ashjdgash
+            {property.title}
           </h3>
 
           {/* Price */}

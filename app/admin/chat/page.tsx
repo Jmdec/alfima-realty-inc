@@ -15,7 +15,13 @@ import {
   Bot,
   HeadphonesIcon,
   Lock,
+  Bell,
+  BellOff,
 } from "lucide-react";
+import {
+  enablePushNotifications,
+  verifyPushSubscription,
+} from "@/lib/push-client";
 
 type SessionStatus = "active" | "resolved" | "pending";
 
@@ -230,6 +236,9 @@ export default function AdminChatPage() {
     "all",
   );
   const [showChat, setShowChat] = useState(false);
+  const [pushStatus, setPushStatus] = useState<
+    "idle" | "loading" | "on" | "error"
+  >("idle");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const replyRef = useRef<HTMLTextAreaElement>(null);
@@ -242,6 +251,19 @@ export default function AdminChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession?.messages]);
+
+  // Register the service worker on mount and check whether this device
+  // is already subscribed to push notifications.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(async () => {
+        const stillValid = await verifyPushSubscription();
+        setPushStatus(stillValid ? "on" : "idle");
+      })
+      .catch((err) => console.error("SW registration failed:", err));
+  }, []);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -257,6 +279,34 @@ export default function AdminChatPage() {
     }
   }, []);
 
+  const handleEnableNotifications = async () => {
+    setPushStatus("loading");
+    try {
+      const result = await enablePushNotifications();
+      setPushStatus(result.ok ? "on" : "error");
+    } catch (err) {
+      console.error("Push subscribe failed:", err);
+
+      // Fallback: the browser-side subscribe may have actually succeeded
+      // even though something else in the flow threw (e.g. the server save
+      // failed). Re-check reality instead of assuming total failure.
+      try {
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+          const sub = await reg?.pushManager.getSubscription();
+          if (sub) {
+            setPushStatus("on");
+            return;
+          }
+        }
+      } catch {
+        // ignore — fall through to error state below
+      }
+
+      setPushStatus("error");
+    }
+  };
+
   const pollActiveSession = useCallback(async () => {
     const sid = activeSessionIdRef.current;
     if (!sid || isMsgPollingRef.current) return;
@@ -270,7 +320,7 @@ export default function AdminChatPage() {
       const data = await res.json();
       const newMsgs: ChatMessage[] = data.messages ?? [];
 
-      // ✅ CHANGE 1: If the session status changed to resolved from another tab/admin,
+      // If the session status changed to resolved from another tab/admin,
       // reflect it in the UI without stopping the poll (admin might reopen it).
       if (data.session?.status) {
         setActiveSession((prev) => {
@@ -349,7 +399,7 @@ export default function AdminChatPage() {
       setSessions((prev) =>
         prev.map((s) => (s.id === id ? { ...s, unread: 0 } : s)),
       );
-      // ✅ CHANGE 2: Only focus reply box if session is not resolved
+      // Only focus reply box if session is not resolved
       if (data.session?.status !== "resolved") {
         setTimeout(() => replyRef.current?.focus(), 150);
       }
@@ -361,7 +411,7 @@ export default function AdminChatPage() {
 
   const sendReply = async () => {
     if (!replyText.trim() || !activeSession || sending) return;
-    // ✅ CHANGE 3: Block sending if session is resolved
+    // Block sending if session is resolved
     if (activeSession.session.status === "resolved") return;
 
     const text = replyText.trim();
@@ -413,7 +463,7 @@ export default function AdminChatPage() {
           s.id === activeSession.session.id ? { ...s, status } : s,
         ),
       );
-      // ✅ CHANGE 4: Clear reply text when resolving so stale text doesn't linger
+      // Clear reply text when resolving so stale text doesn't linger
       if (status === "resolved") setReplyText("");
     } catch {}
   };
@@ -426,7 +476,7 @@ export default function AdminChatPage() {
   );
   const totalUnread = sessions.reduce((n, s) => n + s.unread, 0);
 
-  // ✅ CHANGE 5: Derive isResolved for clean conditional rendering below
+  // Derive isResolved for clean conditional rendering below
   const isResolved = activeSession?.session.status === "resolved";
 
   return (
@@ -538,21 +588,51 @@ export default function AdminChatPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={loadSessions}
-              style={{
-                background: "rgba(255,255,255,0.18)",
-                border: "none",
-                borderRadius: 8,
-                padding: 7,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <RefreshCw size={14} color="#fff" />
-            </button>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <button
+                onClick={loadSessions}
+                style={{
+                  background: "rgba(255,255,255,0.18)",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: 7,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <RefreshCw size={14} color="#fff" />
+              </button>
+              {/* Notification bell */}
+              <button
+                onClick={handleEnableNotifications}
+                disabled={pushStatus === "loading" || pushStatus === "on"}
+                title={
+                  pushStatus === "on"
+                    ? "Notifications enabled"
+                    : "Enable notifications for new chats"
+                }
+                style={{
+                  background: "rgba(255,255,255,0.18)",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: 7,
+                  cursor: pushStatus === "on" ? "default" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: 6,
+                  opacity: pushStatus === "loading" ? 0.6 : 1,
+                }}
+              >
+                {pushStatus === "on" ? (
+                  <Bell size={14} color="#4ade80" fill="#4ade80" />
+                ) : (
+                  <BellOff size={14} color="#fff" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -953,7 +1033,7 @@ export default function AdminChatPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* ✅ CHANGE 6: Reply box — locked banner when resolved, normal textarea otherwise */}
+              {/* Reply box — locked banner when resolved, normal textarea otherwise */}
               <div
                 style={{
                   padding: "14px 20px",

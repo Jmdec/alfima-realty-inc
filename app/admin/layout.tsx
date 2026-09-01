@@ -1,10 +1,19 @@
-'use client';
+"use client";
 
-import { AdminSidebar, AdminMobileTopbar } from '@/components/admin/AdminSidebar';
-import { usePushNotification } from '@/hooks/usePushNotification';
+import {
+  AdminSidebar,
+  AdminMobileTopbar,
+} from "@/components/admin/AdminSidebar";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  usePushNotification(); // 👈 registers SW + subscribes admin to push + badge
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Push notification subscribe now happens on-demand via the bell button
+  // in AdminChatPage (enablePushNotifications), not automatically on every
+  // admin page load. This avoids duplicate subscribe attempts and an
+  // unsolicited permission prompt the moment an admin opens any /admin page.
 
   return (
     <>
@@ -13,16 +22,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         main { padding-top: 0 !important; min-height: unset !important; }
       `}</style>
       <div className="flex h-screen overflow-hidden bg-slate-50">
-
         <AdminSidebar />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <AdminMobileTopbar />
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
+          <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
-
       </div>
     </>
   );

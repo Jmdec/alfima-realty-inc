@@ -4,6 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { LuCloud } from "react-icons/lu";
+import { fetcher } from "@/lib/fetcher";
+import { formatGB } from "@/lib/utils"; // adjust path if different
 import {
   LayoutDashboard,
   Home,
@@ -71,6 +75,80 @@ const NAV_ITEMS = [
     items: [{ label: "Settings", href: "/admin/settings", icon: Settings }],
   },
 ];
+
+// ─── Storage widget ───────────────────────────────────────────────────────
+const StorageWidget: React.FC<{ collapsed?: boolean }> = ({ collapsed }) => {
+  const { data, error } = useSWR(
+    "/api/dashboard/storage-usage",
+    fetcher,
+    { refreshInterval: 5 * 60 * 1000 }, // refresh every 5 min, no need for real-time here
+  );
+
+  if (error || !data) return null;
+
+  const percent = data.percent_used;
+  const usedGB = formatGB(data.used_bytes);
+  const totalGB = formatGB(data.total_bytes);
+  const barColor =
+    percent > 90
+      ? "bg-red-500"
+      : percent > 75
+        ? "bg-yellow-500"
+        : "bg-blue-600";
+
+  if (collapsed) {
+    return (
+      <div
+        className="flex justify-center mb-1"
+        title={`${usedGB} GB of ${totalGB} GB used (${percent}%)`}
+      >
+        <div className="relative w-7 h-7">
+          <svg className="w-7 h-7 -rotate-90" viewBox="0 0 28 28">
+            <circle
+              cx="14"
+              cy="14"
+              r="12"
+              fill="none"
+              stroke="#e5e7eb"
+              strokeWidth="3"
+            />
+            <circle
+              cx="14"
+              cy="14"
+              r="12"
+              fill="none"
+              stroke={
+                percent > 90 ? "#ef4444" : percent > 75 ? "#eab308" : "#2563eb"
+              }
+              strokeWidth="3"
+              strokeDasharray={`${(Math.min(percent, 100) / 100) * 75.4} 75.4`}
+              strokeLinecap="round"
+            />
+          </svg>
+          <LuCloud className="absolute inset-0 m-auto h-3 w-3 text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-0 mb-1 p-3 rounded-lg bg-gray-50 border border-gray-200">
+      <div className="flex items-center gap-2 text-sm text-gray-600 mb-1.5">
+        <LuCloud className="h-4 w-4 shrink-0" />
+        <span>Storage ({percent}% full)</span>
+      </div>
+      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${barColor} transition-all`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+      <p className="text-xs text-gray-400 mt-1">
+        {usedGB} GB of {totalGB} GB used
+      </p>
+    </div>
+  );
+};
 
 function SidebarInner({
   collapsed,
@@ -237,6 +315,8 @@ function SidebarInner({
 
       {/* User + Logout — pinned to bottom */}
       <div className="flex-shrink-0 border-t border-slate-100 p-3 space-y-1">
+        <StorageWidget collapsed={collapsed} />
+
         {!collapsed ? (
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100 mb-1">
             {user?.avatar ? (
@@ -339,6 +419,12 @@ export function AdminMobileTopbar() {
           0%, 100% { transform: translateY(0); opacity: 1; }
           50% { transform: translateY(-3px); opacity: 0.75; }
         }
+        /* Faster tap response on mobile — avoids the ~300ms tap delay some
+           browsers apply, and skips the default tap-highlight flash. */
+        .mobile-drawer a, .mobile-drawer button {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
       `}</style>
 
       {/* Topbar strip */}
@@ -365,33 +451,23 @@ export function AdminMobileTopbar() {
       {mobileOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/40 z-50"
             onClick={() => setMobileOpen(false)}
           />
           <aside
-            className="fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-slate-200 z-50 flex flex-col shadow-2xl"
-            style={{ animation: "slideInLeft 0.25s ease" }}
+            className="mobile-drawer fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-slate-200 z-50 flex flex-col shadow-2xl"
+            style={{ animation: "slideInLeft 0.2s ease" }}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl overflow-hidden shadow">
-                  <img
-                    src="/alfima.png"
-                    alt="Alfima"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span className="text-slate-800 font-bold text-sm">
-                  Alfima Admin
-                </span>
-              </div>
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Close button floats above SidebarInner's own logo header —
+                no separate duplicate header row anymore. Higher z-index +
+                a slightly larger tap target so it's easy to hit on mobile. */}
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              className="absolute top-3.5 right-3.5 z-20 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 flex items-center justify-center text-slate-500 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
             <div className="flex-1 overflow-hidden">
               <SidebarInner
                 collapsed={false}

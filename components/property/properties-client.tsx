@@ -1257,6 +1257,7 @@ function PropertiesPageInner() {
   );
 }
 
+
 export default function PropertiesPage() {
   return (
     <Suspense

@@ -440,6 +440,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           : activeTab === "Developer"
             ? "developer"
             : "";
+          : activeTab === "Developer"
+            ? "developer"
+            : "";
 
     onSearch({
       search: location,
