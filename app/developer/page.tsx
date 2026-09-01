@@ -6,11 +6,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  PropertyCard,
-  getFavoriteKey,
-  normalizeSource,
-} from "@/components/developer-property-card";
+import { PropertyCard } from "@/components/developer-property-card";
 import { PropertySearch } from "@/components/property/property-search";
 import {
   Home,
@@ -35,24 +31,6 @@ const SORT_OPTIONS = [
   { label: "Price: Low–High", value: "price_asc" },
   { label: "Price: High–Low", value: "price_desc" },
 ];
-
-// Properties with a `priority` value in this range get the elevated
-// "Top Pick" card treatment (gold ring/glow + badge) in PropertyCard —
-// same threshold PreviewRow already uses to show its "Priority #" chip,
-// so both surfaces agree on what counts as a top listing.
-const FEATURED_PRIORITY_MAX = 10;
-function isFeaturedPriority(priority: unknown): boolean {
-  const p = Number(priority);
-  return !isNaN(p) && p >= 1 && p <= FEATURED_PRIORITY_MAX;
-}
-
-// Priority rank helper for sorting — properties without a valid priority
-// (null/0/NaN) sink to the bottom via +Infinity. Mirrors the logic used
-// in FeaturedProperties so both surfaces order consistently.
-function priorityRank(p: any): number {
-  const val = Number(p.priority);
-  return !isNaN(val) && val >= 1 ? val : Number.POSITIVE_INFINITY;
-}
 
 const BLUR_PLACEHOLDER =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -240,7 +218,8 @@ function PreviewRow({
   );
 
   // Safely resolve image — handles string paths, object arrays, or missing
-  const rawImg = p.images?.[0]?.url ?? p.thumbnail ?? "";
+  const rawImg =
+   p.images?.[0]?.url ?? p.thumbnail ?? "";
   const imageUrl = resolveImageUrl(rawImg);
 
   const detailHref =
@@ -367,54 +346,7 @@ function PropertiesPageInner() {
     fetchDevelopers();
   }, []);
 
-  // ── Favorites (for favorited-first ordering) ─────────────────────────────
-  const [favoriteKeys, setFavoriteKeys] = useState<Set<string> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadFavorites() {
-      try {
-        const res = await fetch("/api/favorites", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (!res.ok) {
-          if (!cancelled) setFavoriteKeys(new Set());
-          return;
-        }
-
-        const favorites: unknown = await res.json();
-        if (!Array.isArray(favorites)) {
-          if (!cancelled) setFavoriteKeys(new Set());
-          return;
-        }
-
-        const keys = new Set(
-          favorites.map((f: any) => {
-            const source = normalizeSource(f.source);
-            return `${source}:${f.property_id}`;
-          }),
-        );
-
-        if (!cancelled) setFavoriteKeys(keys);
-      } catch {
-        if (!cancelled) setFavoriteKeys(new Set());
-      }
-    }
-
-    loadFavorites();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // ── Core fetch ────────────────────────────────────────────────────────────
-  // NOTE: This is the /developer page — it only ever fetches from
-  // /api/developers-properties. Regular (agent-owned) listings are never
-  // included here, regardless of filters — that's what /properties is for.
   const fetchProperties = async (
     filters?: any,
     page = 1,
@@ -430,67 +362,85 @@ function PropertiesPageInner() {
         per_page: String(PER_PAGE),
         status: "active",
       });
-
-      if (filters?.search) {
-        devParams.append("search", filters.search);
-      }
-
-      if (filters?.city) {
-        devParams.append("city", filters.city);
-      }
-
-      if (filters?.listingType) {
+      if (filters?.search) devParams.append("search", filters.search);
+      if (filters?.listingType)
         devParams.append(
           "listing_type",
           normalizeListingType(filters.listingType),
         );
-      }
+      if (filters?.type) devParams.append("property_type", filters.type);
+      if (devFilter) devParams.set("developer_name", devFilter);
+      if (sort && sort !== "priority") devParams.set("sort", sort);
 
-      if (filters?.type) {
-        devParams.append("property_type", filters.type);
-      }
+      const regParams = new URLSearchParams({
+        page: String(page),
+        per_page: String(PER_PAGE),
+        status: "active",
+      });
+      if (filters?.search) regParams.append("search", filters.search);
+      if (filters?.listingType)
+        regParams.append(
+          "listing_type",
+          normalizeListingType(filters.listingType),
+        );
+      if (filters?.type) regParams.append("property_type", filters.type);
+      if (sort && sort !== "priority") regParams.set("sort", sort);
 
-      if (devFilter) {
-        devParams.set("developer_name", devFilter);
-      }
+      const devFetch = fetch(`/api/developers-properties?${devParams}`);
+      // Skip regular listings when a developer filter is active
+      const regFetch = devFilter
+        ? Promise.resolve(null)
+        : fetch(`/api/properties?${regParams}`);
 
-      if (sort && sort !== "priority") {
-        devParams.set("sort", sort);
-      }
+      const [devRes, regRes] = await Promise.allSettled([devFetch, regFetch]);
 
       let devItems: any[] = [];
       let devMeta: PaginationMeta | null = null;
+      if (devRes.status === "fulfilled" && devRes.value?.ok) {
+        const d = await devRes.value.json();
+        devItems = (d.data ?? []).map((p: any) => ({
+          ...p,
+          _source: "developer" as const,
+        }));
+        devMeta = {
+          current_page: d.current_page,
+          last_page: d.last_page,
+          per_page: d.per_page,
+          total: d.total,
+        };
+      }
 
-      try {
-        const devRes = await fetch(`/api/developers-properties?${devParams}`);
-        if (devRes.ok) {
-          const d = await devRes.json();
-          devItems = (d.data ?? []).map((p: any) => ({
-            ...p,
-            _source: "developer" as const,
-          }));
-          devMeta = {
-            current_page: d.current_page,
-            last_page: d.last_page,
-            per_page: d.per_page,
-            total: d.total,
-          };
-        }
-      } catch {
-        // fall through with devItems/devMeta at their defaults
+      let regItems: any[] = [];
+      let regMeta: PaginationMeta | null = null;
+      if (
+        regRes.status === "fulfilled" &&
+        regRes.value !== null &&
+        regRes.value?.ok
+      ) {
+        const d = await regRes.value.json();
+        regItems = (d.data ?? []).map((p: any) => ({
+          ...p,
+          _source: "regular" as const,
+        }));
+        regMeta = {
+          current_page: d.current_page,
+          last_page: d.last_page,
+          per_page: d.per_page,
+          total: d.total,
+        };
       }
 
       let merged: any[];
       if (sort === "price_asc") {
-        merged = [...devItems].sort(
+        merged = [...devItems, ...regItems].sort(
           (a, b) => Number(a.price ?? 0) - Number(b.price ?? 0),
         );
       } else if (sort === "price_desc") {
-        merged = [...devItems].sort(
+        merged = [...devItems, ...regItems].sort(
           (a, b) => Number(b.price ?? 0) - Number(a.price ?? 0),
         );
       } else if (sort === "newest") {
-        merged = [...devItems].sort(
+        merged = [...devItems, ...regItems].sort(
           (a, b) =>
             new Date(b.created_at ?? 0).getTime() -
             new Date(a.created_at ?? 0).getTime(),
@@ -502,13 +452,13 @@ function PropertiesPageInner() {
         const devNormal = devItems.filter(
           (p) => p.priority == null || p.priority === 0,
         );
-        merged = [...devPriority, ...devNormal];
+        merged = [...devPriority, ...devNormal, ...regItems];
       }
 
       setProperties(merged);
       setDevPagination(devMeta);
-      setRegPagination(null);
-      setCombinedTotal(devMeta?.total ?? 0);
+      setRegPagination(regMeta);
+      setCombinedTotal((devMeta?.total ?? 0) + (regMeta?.total ?? 0));
     } catch (error) {
       console.error("Failed to fetch properties:", error);
       setProperties([]);
@@ -521,41 +471,21 @@ function PropertiesPageInner() {
   };
 
   const searchParamsString = searchParams.toString();
-
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
-
-    const city = urlParams.get("city") ?? "";
-    const search = urlParams.get("search") ?? "";
-    const listingType = urlParams.get("listingType") ?? "";
-    const type = urlParams.get("type") ?? "";
-    const minPrice = urlParams.get("minPrice") ?? "";
-    const maxPrice = urlParams.get("maxPrice") ?? "";
-    const bedrooms = urlParams.get("bedrooms") ?? "";
     const initialDev = urlParams.get("developer_name") ?? "";
-
-    const filters = {
-      city,
-      search,
-      listingType,
-      type,
-      minPrice,
-      maxPrice,
-      bedrooms,
-    };
-
-    const hasFilters = Object.values(filters).some(Boolean);
-
     setCurrentPage(1);
-    setActiveFilters(hasFilters ? filters : null);
+    setActiveFilters(null);
     setDeveloperFilter(initialDev);
     setSortBy("priority");
-
-    fetchProperties(hasFilters ? filters : null, 1, "priority", initialDev);
+    fetchProperties(null, 1, "priority", initialDev);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParamsString]);
 
-  const lastPage = devPagination?.last_page ?? 1;
+  const lastPage = Math.max(
+    devPagination?.last_page ?? 1,
+    regPagination?.last_page ?? 1,
+  );
   const isFiltered = !!(activeFilters || developerFilter);
   const activeFilterCount = [activeFilters, developerFilter].filter(
     Boolean,
@@ -915,15 +845,133 @@ function PropertiesPageInner() {
             </div>
           )}
 
-          {/* Back to Home */}
-          <div className="mb-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm font-semibold transition-colors"
+          {/* Source breakdown summary bar */}
+          {!loading && !developerFilter && (devPagination || regPagination) && (
+            <div
+              className="flex flex-col sm:flex-row items-stretch gap-0 mb-8 rounded-2xl overflow-hidden"
+              style={{
+                border: "1.5px solid rgba(192,57,43,0.35)",
+                background: "rgba(0,0,0,0.35)",
+              }}
             >
-              ← Back to Home{" "}
-            </Link>
-          </div>
+              <div
+                className="flex-1 flex items-center gap-5 px-7 py-5"
+                style={{
+                  background: "rgba(192,57,43,0.12)",
+                  borderRight: "1.5px solid rgba(192,57,43,0.25)",
+                }}
+              >
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "rgba(192,57,43,0.28)",
+                    border: "1.5px solid rgba(192,57,43,0.45)",
+                  }}
+                >
+                  <Building2 className="w-6 h-6 text-red-300" />
+                </div>
+                <div>
+                  <p
+                    className="text-white font-black leading-none"
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: "2.25rem",
+                    }}
+                  >
+                    {(devPagination?.total ?? 0).toLocaleString()}
+                  </p>
+                  <p
+                    className="text-white text-sm font-black tracking-widest uppercase mt-1"
+                    style={{ fontFamily: "monospace" }}
+                  >
+                    Developer Listings
+                  </p>
+                  <p
+                    className="text-white/45 text-xs mt-1"
+                    style={{ fontFamily: "monospace" }}
+                  >
+                    Use filter above to narrow by developer
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="flex items-center justify-center px-5 py-3 shrink-0"
+                style={{ background: "rgba(0,0,0,0.15)" }}
+              >
+                <span
+                  className="text-white/35 text-3xl font-black select-none"
+                  style={{ fontFamily: "Georgia, serif" }}
+                >
+                  +
+                </span>
+              </div>
+
+              <div
+                className="flex-1 flex items-center gap-5 px-7 py-5"
+                style={{
+                  background: "rgba(37,99,235,0.09)",
+                  borderLeft: "1.5px solid rgba(37,99,235,0.2)",
+                }}
+              >
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "rgba(37,99,235,0.2)",
+                    border: "1.5px solid rgba(37,99,235,0.35)",
+                  }}
+                >
+                  <Home className="w-6 h-6 text-blue-300" />
+                </div>
+                <div>
+                  <p
+                    className="text-white font-black leading-none"
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: "2.25rem",
+                    }}
+                  >
+                    {(regPagination?.total ?? 0).toLocaleString()}
+                  </p>
+                  <p
+                    className="text-blue-200/80 text-sm font-black tracking-widest uppercase mt-1"
+                    style={{ fontFamily: "monospace" }}
+                  >
+                    Individual Listings
+                  </p>
+                  <p
+                    className="text-white/45 text-xs mt-1"
+                    style={{ fontFamily: "monospace" }}
+                  >
+                    Direct owner &amp; agent listings
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="flex items-center justify-center px-8 py-5 shrink-0 border-l border-red-900/30"
+                style={{ background: "rgba(0,0,0,0.3)", minWidth: "110px" }}
+              >
+                <div className="text-center">
+                  <p
+                    className="text-red-400 font-black leading-none"
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: "2.75rem",
+                    }}
+                  >
+                    {combinedTotal.toLocaleString()}
+                  </p>
+                  <p
+                    className="text-white/50 text-sm font-black tracking-widest uppercase mt-1"
+                    style={{ fontFamily: "monospace" }}
+                  >
+                    Total
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
@@ -1013,6 +1061,7 @@ function PropertiesPageInner() {
               </div>
             </div>
           </div>
+
           {/* Grid / List */}
           {loading ? (
             <div
@@ -1035,18 +1084,12 @@ function PropertiesPageInner() {
             </div>
           ) : properties.length > 0 ? (
             (() => {
-              // Favorited-first ordering, falling back to priority — same
-              // pattern as FeaturedProperties' `sortedProperties`.
-              const favSort = (a: any, b: any) => {
-                const aFav = favoriteKeys?.has(getFavoriteKey(a)) ?? false;
-                const bFav = favoriteKeys?.has(getFavoriteKey(b)) ?? false;
-                if (aFav !== bFav) return aFav ? -1 : 1;
-                return priorityRank(a) - priorityRank(b);
-              };
-
-              const devProps = properties
-                .filter((p) => p._source === "developer")
-                .sort(favSort);
+              const devProps = properties.filter(
+                (p) => p._source === "developer",
+              );
+              const regProps = properties.filter(
+                (p) => p._source === "regular",
+              );
               const gridClass = `grid gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`;
 
               return (
@@ -1101,14 +1144,91 @@ function PropertiesPageInner() {
                             key={`developer-${p.id}`}
                             property={p}
                             priority={idx < 3}
-                            featured={isFeaturedPriority(p.priority)}
-                            initialFavorite={
-                              favoriteKeys
-                                ? favoriteKeys.has(getFavoriteKey(p))
-                                : undefined
-                            }
                           />
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  {devProps.length > 0 && regProps.length > 0 && (
+                    <div className="flex items-center gap-4 my-8">
+                      <div
+                        className="flex-1 h-px"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                      />
+                      <span
+                        className="text-white/15 text-[10px] font-bold tracking-[0.3em] uppercase px-4"
+                        style={{ fontFamily: "monospace" }}
+                      >
+                        Also available
+                      </span>
+                      <div
+                        className="flex-1 h-px"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Individual Listings */}
+                  {regProps.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-4 mb-5">
+                        <div
+                          className="flex items-center gap-3 px-4 py-2 rounded-xl"
+                          style={{
+                            background: "rgba(37,99,235,0.12)",
+                            border: "1px solid rgba(37,99,235,0.22)",
+                          }}
+                        >
+                          <Home className="w-4 h-4 text-blue-400" />
+                          <span
+                            className="text-white font-black text-sm tracking-wide"
+                            style={{ fontFamily: "Georgia, serif" }}
+                          >
+                            Individual Listings
+                          </span>
+                          <span
+                            className="text-blue-300/70 font-bold text-xs px-2 py-0.5 rounded-full"
+                            style={{
+                              background: "rgba(37,99,235,0.25)",
+                              fontFamily: "monospace",
+                            }}
+                          >
+                            {regPagination?.total ?? regProps.length}
+                          </span>
+                        </div>
+                        <span
+                          className="text-white/20 text-[10px]"
+                          style={{ fontFamily: "monospace" }}
+                        >
+                          Direct owner &amp; agent listings
+                        </span>
+                        <div
+                          className="flex-1 h-px"
+                          style={{ background: "rgba(37,99,235,0.15)" }}
+                        />
+                      </div>
+                      <div className={gridClass}>
+                        {regProps
+                          .sort((a, b) => {
+                            const aP = Number(a.priority);
+                            const bP = Number(b.priority);
+                            const aHas = !isNaN(aP) && aP >= 1;
+                            const bHas = !isNaN(bP) && bP >= 1;
+
+                            if (aHas && bHas) return aP - bP;
+                            if (aHas) return -1;
+                            if (bHas) return 1;
+                            return 0;
+                          })
+                          .map((p, idx) => (
+                            <PropertyCard
+                              key={`regular-${p.id}`}
+                              property={p}
+                              priority={idx < 3}
+                            />
+                          ))}
                       </div>
                     </div>
                   )}
