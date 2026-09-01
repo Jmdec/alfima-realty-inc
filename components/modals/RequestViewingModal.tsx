@@ -10,7 +10,11 @@ import {
   AlertCircle,
   Search,
 } from "lucide-react";
-
+declare global {
+  interface Window {
+    gtag?: (...args: any[]) => void;
+  }
+}
 const MONTHS = [
   "January",
   "February",
@@ -39,8 +43,6 @@ const TIME_SLOTS = [
   "5:00 PM",
 ];
 
-// Max results shown per group in the search dropdown. Keeps the list snappy
-// even with 480+ total properties — the user narrows down by typing.
 const MAX_GROUP_RESULTS = 25;
 
 type PropertySource = "property" | "developer";
@@ -57,12 +59,10 @@ interface Props {
   onClose: () => void;
 }
 
-// Composite key so regular + developer properties can't collide on id.
 function optionKey(p: PropertyOption): string {
   return `${p.source}:${p.id}`;
 }
 
-// ── Validation helpers ─────────────────────────────────────────────────────
 function validateEmail(email: string): string {
   if (!email.trim()) return "Email address is required.";
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,7 +78,6 @@ function validatePhone(phone: string): string {
   if (phone.length !== 11) return "Phone number must be exactly 11 digits.";
   return "";
 }
-// ──────────────────────────────────────────────────────────────────────────
 
 type FormField = "name" | "email" | "phone";
 
@@ -106,20 +105,22 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
   const [propsLoading, setPropsLoading] = useState(false);
   const [propsError, setPropsError] = useState<string | null>(null);
 
-  // ── Property search combobox state ──
   const [propSearch, setPropSearch] = useState("");
   const [propDropdownOpen, setPropDropdownOpen] = useState(false);
   const propDropdownRef = useRef<HTMLDivElement>(null);
 
+  const formStartFired = useRef(false);
+
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
+    if (isOpen) {
+      formStartFired.current = false;
+    }
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
 
-  // Fetch both regular and developer properties in parallel, tagging each
-  // with its source so they can be grouped and de-duplicated by key.
   useEffect(() => {
     if (!isOpen || properties.length > 0) return;
     setPropsLoading(true);
@@ -155,7 +156,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
       .finally(() => setPropsLoading(false));
   }, [isOpen]);
 
-  // Close the search dropdown when clicking outside it.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (
@@ -251,7 +251,12 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     onClose();
   };
 
-  // Run validation for a single field and update state
+  const trackFormStart = () => {
+    if (formStartFired.current) return;
+    formStartFired.current = true;
+    window.gtag?.("event", "request_viewing_form_start");
+  };
+
   function runValidation(field: FormField, value: string): string {
     if (field === "email") return validateEmail(value);
     if (field === "phone") return validatePhone(value);
@@ -259,7 +264,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
   }
 
   const handleFieldChange = (field: FormField, rawValue: string) => {
-    // Strip non-digits for phone as the user types
     const value = field === "phone" ? rawValue.replace(/\D/g, "") : rawValue;
     setForm((f) => ({ ...f, [field]: value }));
     if (touched[field]) {
@@ -278,14 +282,12 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     }));
   };
 
-  // Border colour helper
   const fieldBorderColor = (field: FormField) => {
     if (!touched[field]) return "rgba(0,0,0,0.12)";
     return fieldErrors[field] ? "rgba(231,76,60,0.7)" : "rgba(39,174,96,0.6)";
   };
 
   const handleSubmit = async () => {
-    // Touch all validated fields and run full validation
     const emailErr = validateEmail(form.email);
     const phoneErr = validatePhone(form.phone);
     const nameErr = !form.name.trim() ? "Full name is required." : "";
@@ -345,6 +347,13 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
         return;
       }
 
+      window.gtag?.("event", "request_viewing_submit", {
+        property_count: selectedProps.length,
+        property_titles: selectedProps.map((p) => p.title).join(", "),
+        preferred_date,
+        preferred_time: selectedTime,
+      });
+
       setSubmitted(true);
     } catch {
       setSubmitError(
@@ -355,7 +364,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
     }
   };
 
-  // Inline field error element
   const FieldError = ({ msg }: { msg?: string }) =>
     msg ? (
       <div
@@ -419,7 +427,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
         }
         .rv-animate{animation:rvFadeIn .22s ease-out both}
 
-        /* ── Property search combobox ── */
         .rv-combobox{position:relative}
         .rv-combo-input-wrap{position:relative}
         .rv-combo-icon{
@@ -462,7 +469,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
         @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
 
-      {/* Backdrop */}
       <div
         onClick={handleClose}
         style={{
@@ -477,7 +483,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
           padding: "16px",
         }}
       >
-        {/* Modal panel */}
         <div
           className="rv-animate rv-scroll"
           onClick={(e) => e.stopPropagation()}
@@ -493,7 +498,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
             boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
           }}
         >
-          {/* ── Sticky Header ── */}
           <div
             style={{
               background: "#ffffff",
@@ -575,7 +579,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
             </p>
           </div>
 
-          {/* ── Success State ── */}
           {submitted ? (
             <div style={{ padding: "64px 28px", textAlign: "center" }}>
               <div
@@ -633,7 +636,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
             </div>
           ) : (
             <>
-              {/* ── Form Body ── */}
               <div
                 style={{
                   padding: "24px 28px",
@@ -642,7 +644,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                   gap: 18,
                 }}
               >
-                {/* Name + Phone */}
                 <div
                   className="rv-two-col"
                   style={{
@@ -651,7 +652,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                     gap: 14,
                   }}
                 >
-                  {/* Full Name */}
                   <div>
                     <label className="rv-label">Full Name</label>
                     <input
@@ -662,6 +662,7 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       onChange={(e) =>
                         handleFieldChange("name", e.target.value)
                       }
+                      onFocus={trackFormStart}
                       onBlur={() => handleBlur("name")}
                       style={{
                         border: `1px solid ${fieldBorderColor("name")}`,
@@ -670,7 +671,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                     <FieldError msg={fieldErrors.name} />
                   </div>
 
-                  {/* Phone */}
                   <div>
                     <label className="rv-label">
                       Phone Number
@@ -696,13 +696,13 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       onChange={(e) =>
                         handleFieldChange("phone", e.target.value)
                       }
+                      onFocus={trackFormStart}
                       onBlur={() => handleBlur("phone")}
                       style={{
                         border: `1px solid ${fieldBorderColor("phone")}`,
                       }}
                     />
                     <FieldError msg={fieldErrors.phone} />
-                    {/* Character counter */}
                     {form.phone.length > 0 && (
                       <div
                         style={{
@@ -722,7 +722,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                   </div>
                 </div>
 
-                {/* Email */}
                 <div>
                   <label className="rv-label">Email Address</label>
                   <input
@@ -731,16 +730,15 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                     placeholder="juan@email.com"
                     value={form.email}
                     onChange={(e) => handleFieldChange("email", e.target.value)}
+                    onFocus={trackFormStart}
                     onBlur={() => handleBlur("email")}
                     style={{ border: `1px solid ${fieldBorderColor("email")}` }}
                   />
                   <FieldError msg={fieldErrors.email} />
                 </div>
 
-                {/* Divider */}
                 <div style={{ height: 1, background: "rgba(0,0,0,0.07)" }} />
 
-                {/* Calendar */}
                 <div>
                   <label className="rv-label">Preferred Viewing Date</label>
                   <div
@@ -751,7 +749,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       padding: 16,
                     }}
                   >
-                    {/* Month nav */}
                     <div
                       style={{
                         display: "flex",
@@ -805,7 +802,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       </button>
                     </div>
 
-                    {/* Day-of-week headers */}
                     <div
                       style={{
                         display: "grid",
@@ -867,7 +863,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                       )}
                     </div>
 
-                    {/* Time slots */}
                     <div
                       style={{
                         marginTop: 14,
@@ -929,7 +924,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                   )}
                 </div>
 
-                {/* Properties to View */}
                 <div>
                   <label className="rv-label">Properties to View</label>
 
@@ -967,7 +961,10 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                             setPropSearch(e.target.value);
                             setPropDropdownOpen(true);
                           }}
-                          onFocus={() => setPropDropdownOpen(true)}
+                          onFocus={() => {
+                            setPropDropdownOpen(true);
+                            trackFormStart();
+                          }}
                           style={{ border: "1px solid rgba(0,0,0,0.12)" }}
                         />
                       </div>
@@ -1114,7 +1111,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                   </div>
                 </div>
 
-                {/* ── Error banner ── */}
                 {submitError && (
                   <div
                     style={{
@@ -1139,7 +1135,6 @@ export function RequestViewingModal({ isOpen, onClose }: Props) {
                 )}
               </div>
 
-              {/* ── Footer ── */}
               <div style={{ padding: "0 28px 28px" }}>
                 <button
                   className="rv-submit"

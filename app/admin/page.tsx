@@ -61,6 +61,7 @@ type BrowserVisit = {
   visitors: number;
   pageviews: number;
 };
+type EventVisit = { eventName: string; count: number };
 
 type SiteAnalytics = {
   totals: { visitors: number; pageviews: number } | null;
@@ -69,6 +70,7 @@ type SiteAnalytics = {
   referrers: ReferrerVisit[];
   devices: DeviceVisit[];
   browsers: BrowserVisit[];
+  events: EventVisit[];
 };
 
 const EMPTY_ANALYTICS: SiteAnalytics = {
@@ -78,6 +80,7 @@ const EMPTY_ANALYTICS: SiteAnalytics = {
   referrers: [],
   devices: [],
   browsers: [],
+  events: [],
 };
 
 const STAT_CARDS: Omit<StatCard, "value" | "change" | "up">[] = [
@@ -206,7 +209,7 @@ const parseJsonResponse = async (res: Response, source: string) => {
   }
 };
 
-// Small horizontal bar-list panel used across the analytics section
+// Small horizontal bar-list panel used across the analytics sections
 function BarListPanel({
   title,
   icon: Icon,
@@ -233,7 +236,10 @@ function BarListPanel({
         <div className="space-y-2.5">
           {rows.map((r) => {
             const pct = max > 0 ? (r.visitors / max) * 100 : 0;
-            const label = r.label.trim() === "" ? emptyLabel : r.label;
+            const label =
+              r.label.trim() === "" || r.label === "(not set)"
+                ? emptyLabel
+                : r.label;
             return (
               <div key={label} className="flex items-center gap-3">
                 <span
@@ -265,9 +271,16 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Vercel Web Analytics
   const [siteAnalytics, setSiteAnalytics] =
     useState<SiteAnalytics>(EMPTY_ANALYTICS);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  // Google Analytics (GA4)
+  const [gaAnalytics, setGaAnalytics] =
+    useState<SiteAnalytics>(EMPTY_ANALYTICS);
+  const [gaLoading, setGaLoading] = useState(true);
 
   const formatRelative = (iso: string | Date | undefined): string => {
     if (!iso) return "Just now";
@@ -390,6 +403,7 @@ export default function AdminDashboard() {
           referrers: Array.isArray(data?.referrers) ? data.referrers : [],
           devices: Array.isArray(data?.devices) ? data.devices : [],
           browsers: Array.isArray(data?.browsers) ? data.browsers : [],
+          events: Array.isArray(data?.events) ? data.events : [],
         });
       } catch (err) {
         console.error("Failed to load site analytics", err);
@@ -399,6 +413,32 @@ export default function AdminDashboard() {
     };
 
     fetchSiteAnalytics();
+  }, []);
+
+  // Google Analytics (GA4) — separate section, pulled via the GA4 Data API
+  useEffect(() => {
+    const fetchGaAnalytics = async () => {
+      setGaLoading(true);
+      try {
+        const res = await fetch("/api/admin/ga-analytics");
+        const data = await parseJsonResponse(res, "ga-analytics");
+        setGaAnalytics({
+          totals: data?.totals ?? null,
+          countries: Array.isArray(data?.countries) ? data.countries : [],
+          pages: Array.isArray(data?.pages) ? data.pages : [],
+          referrers: Array.isArray(data?.referrers) ? data.referrers : [],
+          devices: Array.isArray(data?.devices) ? data.devices : [],
+          browsers: Array.isArray(data?.browsers) ? data.browsers : [],
+          events: Array.isArray(data?.events) ? data.events : [],
+        });
+      } catch (err) {
+        console.error("Failed to load GA analytics", err);
+      } finally {
+        setGaLoading(false);
+      }
+    };
+
+    fetchGaAnalytics();
   }, []);
 
   const activeStatCards: StatCard[] = STAT_CARDS.map((base) => {
@@ -425,6 +465,7 @@ export default function AdminDashboard() {
   const activityItems =
     recentActivity.length > 0 ? recentActivity : RECENT_ACTIVITY;
 
+  // Vercel rows
   const countryRows = siteAnalytics.countries.map((c) => ({
     label: countryLabel(c.country),
     visitors: c.visitors,
@@ -449,6 +490,40 @@ export default function AdminDashboard() {
     label: b.browserName,
     visitors: b.visitors,
     pageviews: b.pageviews,
+  }));
+
+  // GA rows
+  const gaCountryRows = gaAnalytics.countries.map((c) => ({
+    label: countryLabel(c.country),
+    visitors: c.visitors,
+    pageviews: c.pageviews,
+  }));
+  const gaPageRows = gaAnalytics.pages.map((p) => ({
+    label: p.route,
+    visitors: p.visitors,
+    pageviews: p.pageviews,
+  }));
+  const gaReferrerRows = gaAnalytics.referrers.map((r) => ({
+    label: r.referrerHostname,
+    visitors: r.visitors,
+    pageviews: r.pageviews,
+  }));
+  const gaDeviceRows = gaAnalytics.devices.map((d) => ({
+    label: d.deviceType,
+    visitors: d.visitors,
+    pageviews: d.pageviews,
+  }));
+  const gaBrowserRows = gaAnalytics.browsers.map((b) => ({
+    label: b.browserName,
+    visitors: b.visitors,
+    pageviews: b.pageviews,
+  }));
+  // Custom events row — reuse the visitors/pageviews shape BarListPanel expects,
+  // mapping event count into both fields so the bar + label render correctly.
+  const gaEventRows = gaAnalytics.events.map((e) => ({
+    label: e.eventName,
+    visitors: e.count,
+    pageviews: e.count,
   }));
 
   return (
@@ -608,12 +683,12 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ── Site Analytics (Vercel Web Analytics) ────────────────────────── */}
+      {/* ── Site Analytics (Vercel) ──────────────────────────────────────── */}
       <div className="mt-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-slate-700 flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-slate-400" />
-            Site Analytics
+            Site Analytics (Vercel)
           </h2>
           <span className="text-xs text-slate-400 font-medium">
             Last 7 days
@@ -671,6 +746,78 @@ export default function AdminDashboard() {
             rows={deviceRows}
           />
           <BarListPanel title="Browsers" icon={Chrome} rows={browserRows} />
+        </div>
+      </div>
+
+      {/* ── Site Analytics (Google Analytics) ───────────────────────────── */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-slate-700 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-slate-400" />
+            Site Analytics (Google Analytics)
+          </h2>
+          <span className="text-xs text-slate-400 font-medium">
+            Last 7 days
+          </span>
+        </div>
+
+        {/* Totals row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <Eye className="w-4 h-4 text-blue-500" />
+              <p className="text-sm text-slate-400">Visitors</p>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">
+              {gaLoading
+                ? "—"
+                : (gaAnalytics.totals?.visitors ?? 0).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <FileBarChart className="w-4 h-4 text-violet-500" />
+              <p className="text-sm text-slate-400">Page Views</p>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">
+              {gaLoading
+                ? "—"
+                : (gaAnalytics.totals?.pageviews ?? 0).toLocaleString()}
+            </p>
+          </div>
+        </div>
+
+        {/* Breakdown panels */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <BarListPanel
+            title="Top Pages"
+            icon={FileText}
+            rows={gaPageRows}
+            emptyLabel="/"
+          />
+          <BarListPanel
+            title="Visitors by Country"
+            icon={Globe}
+            rows={gaCountryRows}
+          />
+          <BarListPanel
+            title="Top Referrers"
+            icon={ExternalLink}
+            rows={gaReferrerRows}
+            emptyLabel="Direct / no referrer"
+          />
+          <BarListPanel
+            title="Devices"
+            icon={MonitorSmartphone}
+            rows={gaDeviceRows}
+          />
+          <BarListPanel title="Browsers" icon={Chrome} rows={gaBrowserRows} />
+          <BarListPanel
+            title="Custom Events (Clicks, Submits, etc.)"
+            icon={Activity}
+            rows={gaEventRows}
+            emptyLabel="No events yet"
+          />
         </div>
       </div>
     </div>

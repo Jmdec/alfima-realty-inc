@@ -21,6 +21,9 @@ const FAVICON_VERSION = "v2";
 // ─── Facebook Pixel ──────────────────────────────────────────────────────────  ← added
 const FB_PIXEL_ID = "1842786363357947"; // ← added
 
+// ─── Google Analytics (GA4) ─────────────────────────────────────────────────  ← added
+const GA_MEASUREMENT_ID = "G-GMZSRL2Q26"; // ← added
+
 // ─── Canonical base — no trailing slash ──────────────────────────────────────
 // Use your real domain once deployed; Vercel preview URL hurts canonical signals
 const BASE_URL = "https://alfimarealtyinc.com";
@@ -476,6 +479,20 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased overflow-x-hidden">
+        {/* ── Google Analytics (GA4) ───────────────────────────────────────  ← added */}
+        <Script
+          strategy="afterInteractive"
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        />
+        <Script id="ga-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+
         {/* ── Facebook Pixel base code ──────────────────────────────────── */}
         <Script id="fb-pixel" strategy="afterInteractive">
           {`                                                                   
