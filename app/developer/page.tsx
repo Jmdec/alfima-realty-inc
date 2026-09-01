@@ -6,11 +6,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  PropertyCard,
-  getFavoriteKey,
-  normalizeSource,
-} from "@/components/developer-property-card";
+import { PropertyCard } from "@/components/developer-property-card";
 import { DeveloperHeroSearch } from "@/components/home/DeveloperHeroSearch";
 import {
   Home,
@@ -21,6 +17,8 @@ import {
   Grid3x3,
   LayoutList,
 } from "lucide-react";
+import { normalizeSource } from "@/components/developer-property-card";
+import { Property } from "@/lib/types";
 
 interface PaginationMeta {
   current_page: number;
@@ -222,8 +220,7 @@ function PreviewRow({
   );
 
   // Safely resolve image — handles string paths, object arrays, or missing
-  const rawImg =
-   p.images?.[0]?.url ?? p.thumbnail ?? "";
+  const rawImg = p.images?.[0]?.url ?? p.thumbnail ?? "";
   const imageUrl = resolveImageUrl(rawImg);
 
   const detailHref =
@@ -301,6 +298,17 @@ function PreviewRow({
   );
 }
 
+export function getFavoriteKey(property: Property): string {
+  const source = normalizeSource(
+    (property as any)._source ?? (property as any).source ?? "developer",
+  );
+  const id =
+    source === "developer_property"
+      ? (property.raw_id ?? property.id)
+      : property.id;
+  return `${source}:${id}`;
+}
+
 // ── Inner page ────────────────────────────────────────────────────────────────
 function PropertiesPageInner() {
   const searchParams = useSearchParams();
@@ -323,6 +331,9 @@ function PropertiesPageInner() {
   // ── Dynamic developer list ────────────────────────────────────────────────
   const [developerList, setDeveloperList] = useState<string[]>([]);
   const [developersLoading, setDevelopersLoading] = useState(true);
+
+  // ── Favorites (for favorited-first ordering) ─────────────────────────────
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     const fetchDevelopers = async () => {
@@ -348,6 +359,53 @@ function PropertiesPageInner() {
       }
     };
     fetchDevelopers();
+  }, []);
+
+  // ── Fetch favorite keys (for favorited-first ordering) ──────────────────
+  // Populates `favoriteKeys` so both the developer and regular listing
+  // grids can sort favorited cards to the front, and so each PropertyCard
+  // can be seeded with `initialIsFavorite` (avoids a flash of the wrong
+  // heart state while PropertyCard does its own per-card fetch).
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFavorites = async () => {
+      try {
+        const res = await fetch("/api/favorites", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        // Not logged in, or request failed — no favorites to apply.
+        if (!res.ok) {
+          if (!cancelled) setFavoriteKeys(new Set());
+          return;
+        }
+
+        const favorites: unknown = await res.json();
+
+        if (!Array.isArray(favorites)) {
+          if (!cancelled) setFavoriteKeys(new Set());
+          return;
+        }
+
+        const keys = new Set(
+          favorites.map(
+            (f: any) => `${normalizeSource(f.source)}:${f.property_id}`,
+          ),
+        );
+
+        if (!cancelled) setFavoriteKeys(keys);
+      } catch {
+        if (!cancelled) setFavoriteKeys(new Set());
+      }
+    };
+
+    loadFavorites();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Core fetch ────────────────────────────────────────────────────────────
@@ -1101,6 +1159,24 @@ function PropertiesPageInner() {
               );
               const gridClass = `grid gap-5 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`;
 
+              // Shared favorite-first comparator: favorited cards always
+              // float to the top, then fall back to priority ordering.
+              const byFavoriteThenPriority = (a: any, b: any) => {
+                const aFav = favoriteKeys?.has(getFavoriteKey(a)) ?? false;
+                const bFav = favoriteKeys?.has(getFavoriteKey(b)) ?? false;
+                if (aFav !== bFav) return aFav ? -1 : 1;
+
+                const aP = Number(a.priority);
+                const bP = Number(b.priority);
+                const aHas = !isNaN(aP) && aP >= 1;
+                const bHas = !isNaN(bP) && bP >= 1;
+
+                if (aHas && bHas) return aP - bP;
+                if (aHas) return -1;
+                if (bHas) return 1;
+                return 0;
+              };
+
               return (
                 <div className="mb-12">
                   {/* Developer Listings */}
@@ -1148,13 +1224,18 @@ function PropertiesPageInner() {
                         />
                       </div>
                       <div className={gridClass}>
-                        {devProps.map((p, idx) => (
-                          <PropertyCard
-                            key={`developer-${p.id}`}
-                            property={p}
-                            priority={idx < 3}
-                          />
-                        ))}
+                        {devProps
+                          .sort(byFavoriteThenPriority)
+                          .map((p, idx) => (
+                            <PropertyCard
+                              key={`developer-${p.id}`}
+                              property={p}
+                              priority={idx < 3}
+                              initialIsFavorite={favoriteKeys?.has(
+                                getFavoriteKey(p),
+                              )}
+                            />
+                          ))}
                       </div>
                     </div>
                   )}
@@ -1220,22 +1301,15 @@ function PropertiesPageInner() {
                       </div>
                       <div className={gridClass}>
                         {regProps
-                          .sort((a, b) => {
-                            const aP = Number(a.priority);
-                            const bP = Number(b.priority);
-                            const aHas = !isNaN(aP) && aP >= 1;
-                            const bHas = !isNaN(bP) && bP >= 1;
-
-                            if (aHas && bHas) return aP - bP;
-                            if (aHas) return -1;
-                            if (bHas) return 1;
-                            return 0;
-                          })
+                          .sort(byFavoriteThenPriority)
                           .map((p, idx) => (
                             <PropertyCard
                               key={`regular-${p.id}`}
                               property={p}
                               priority={idx < 3}
+                              initialIsFavorite={favoriteKeys?.has(
+                                getFavoriteKey(p),
+                              )}
                             />
                           ))}
                       </div>
