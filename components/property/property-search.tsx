@@ -317,8 +317,18 @@ export function PropertySearch({
       search: search || undefined,
       listingType: listingType || undefined,
       type: type || undefined,
-      minPrice: minPrice ? parseInt(minPrice) : undefined,
-      maxPrice: maxPrice ? parseInt(maxPrice) : undefined,
+      // BUG FIX: this used to always send `minPrice`/`maxPrice`, even when
+      // the user never touched those fields — they'd get silently filled
+      // with the derived catalog range (or, worse, collapse to a single
+      // exact value when only one listing in the catalog has a parseable
+      // price, e.g. min === max === 4,500,000). That turned an innocuous
+      // "search taguig/makati" into an unintended exact-price filter that
+      // excluded every other listing. Only forward these when the user
+      // (or an incoming URL) actually set them.
+      minPrice:
+        minPriceTouched.current && minPrice ? parseInt(minPrice) : undefined,
+      maxPrice:
+        maxPriceTouched.current && maxPrice ? parseInt(maxPrice) : undefined,
       // bedrooms "0" (Studio) must still be sent — compare to "" not
       // falsiness, since 0 is falsy as a number but a legit selection here.
       bedrooms: bedrooms !== "" ? parseInt(bedrooms) : undefined,
