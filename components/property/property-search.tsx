@@ -33,8 +33,8 @@ function rowMatchesListingType(
 ): boolean {
   if (!filter) return true;
   const v = (rawListingType ?? "").toString().trim().toLowerCase();
-  if (filter === "sale") return v === "for sale" || v === "sale";
-  if (filter === "rent") return v === "for rent" || v === "rent";
+  if (filter === "sale") return v === "for sale";
+  if (filter === "rent") return v === "for rent";
   return true;
 }
 

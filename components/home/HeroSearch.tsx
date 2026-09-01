@@ -289,24 +289,23 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
     if (location) {
       params.set("search", location);
     }
-    if (listingType !== "developer") {
-      params.set("listingType", listingType);
-    }
+
     if (listingType === "developer") {
-      params.set("scope", "all");
+      params.set("scope", "all"); // include developer inventory
+    } else {
+      params.set("listingType", listingType); // "sale" or "rent"
     }
+
     if (propType) params.set("type", propType);
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (bedrooms) params.set("bedrooms", bedrooms);
 
-    const destination =
-      listingType === "developer" ? "/developer" : "/properties";
-
-    // Client-side navigation — updates the URL/slug params live without a
-    // full-page reload, and lets the destination page's own searchParams
-    // effect pick up the change and refetch.
-    router.push(`${destination}?${params.toString()}`);
+    if (listingType === "sale" || listingType === "rent") {
+      window.location.href = `/properties?${params.toString()}`;
+    } else if (listingType === "developer") {
+      window.location.href = `/developer?${params.toString()}`;
+    }
   };
 
   const activeCount = [propType, budget, bedrooms].filter(Boolean).length;
@@ -673,7 +672,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           }
         `}</style>
 
-        
       <section
         className="hs2-section absolute w-full bg-transparent z-10 box-border
   px-3 pb-10 -mt-8
