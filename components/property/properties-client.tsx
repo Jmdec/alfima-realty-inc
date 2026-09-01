@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { PropertyCard } from "@/components/property/property-card";
-import { PropertySearch } from "@/components/property/property-search";
+import { HeroSearch } from "@/components/home/HeroSearch";
 import { useAuth } from "@/lib/store";
 import { normalizeSource } from "@/components/developer-property-card";
 import {
@@ -89,12 +89,21 @@ function formatPrice(amount: number): string {
   return `₱${amount.toLocaleString("en-PH")}`;
 }
 
+// FIX: "developer" is a *scope* (which table to search), not a real
+// listing_type — the listing_type column only ever stores "sale"/"rent",
+// even for developer-sourced rows. Previously this function passed
+// "developer" straight through unchanged, and fetchProperties() sent it to
+// the backend as listing_type=developer, which matches nothing in either
+// table and guarantees an empty result every time the Developer tab is
+// used — regardless of what's actually in the database. Callers now check
+// for "developer" explicitly (see fetchProperties) instead of relying on
+// this to normalize it away.
 function normalizeListingType(raw: string): string {
   const v = raw.trim().toLowerCase();
   if (v === "for sale" || v === "sale") return "sale";
   if (v === "for rent" || v === "rent") return "rent";
   return raw;
-} 
+}
 
 // Priority rank helper for sorting — properties without a valid priority
 // (null/0/NaN) sink to the bottom via +Infinity. Mirrors app/developer/page.tsx
@@ -116,19 +125,35 @@ function thumbUrl(url: string, w = 400, h = 300): string {
 }
 
 // Builds a URLSearchParams string from a filters object using the same
-// key names HeroSearch already writes when it navigates here (search,
-// city, listingType, type, minPrice, maxPrice, bedrooms, scope). Shared by
-// every handler below that changes filters, so the address bar always
-// reflects whatever is currently active — previously only the very first
-// navigation (HeroSearch's window.location.href) ever touched the URL;
-// every subsequent in-page PropertySearch search updated state/results
-// but left the URL frozen on the original params.
+// key names HeroSearch writes when it navigates here directly (search,
+// listingType, propertyType, minPrice, maxPrice, bedrooms, scope). Shared
+// by every handler below that changes filters (sort, pagination, clear),
+// so the address bar always reflects whatever is currently active.
+//
+// PROPERTY TYPE KEY: HeroSearch itself pushes `propertyType` (not `type`)
+// into the URL — see its own FIX comment ("backend's $param() helper looks
+// for property_type or propertyType"). This page now embeds HeroSearch
+// directly, so it must use the same key when round-tripping the filter on
+// sort/page changes, or the property-type filter would silently drop the
+// moment the user sorted or paginated.
+//
+// SCOPE: this page (For Sale / For Rent tabs, plain Navbar links) searches
+// the agent-owned `properties` table only. The separate "Developer" tab
+// navigates to /developer and is responsible for querying
+// developer_properties on its own. scope is therefore only written into
+// the URL if it was actually present in the incoming filters object (i.e.
+// something upstream explicitly asked for the merged catalog) — this page
+// does not invent scope=all on its own anymore.
 function buildFiltersQueryString(f: any): string {
   const params = new URLSearchParams();
   if (f?.search) params.set("search", f.search);
   if (f?.city) params.set("city", f.city);
   if (f?.listingType) params.set("listingType", f.listingType);
-  if (f?.type) params.set("type", f.type);
+  if (f?.type) params.set("propertyType", f.type);
+  if (f?.minPrice !== undefined && f?.minPrice !== null && f?.minPrice !== "")
+    params.set("minPrice", String(f.minPrice));
+  if (f?.maxPrice !== undefined && f?.maxPrice !== null && f?.maxPrice !== "")
+    params.set("maxPrice", String(f.maxPrice));
   if (f?.bedrooms !== undefined && f?.bedrooms !== null && f?.bedrooms !== "")
     params.set("bedrooms", String(f.bedrooms));
   if (f?.scope) params.set("scope", f.scope);
@@ -655,11 +680,17 @@ function PropertiesPageInner() {
         params.append("city", filters.city);
       }
       if (filters?.name) params.append("name", filters.name);
-      if (filters?.listingType)
+
+      // FIX: "developer" is a scope flag (search the developer_properties
+      // table), not a real listing_type — the listing_type column only
+      // ever stores "sale"/"rent", even on developer-sourced rows. Only
+      // forward listing_type for real sale/rent values.
+      if (filters?.listingType && filters.listingType !== "developer") {
         params.append(
           "listing_type",
           normalizeListingType(filters.listingType),
         );
+      }
       if (filters?.type) params.append("property_type", filters.type);
       if (filters?.minPrice != null)
         params.append("min_price", String(filters.minPrice));
@@ -677,8 +708,18 @@ function PropertiesPageInner() {
       )
         params.append("bedrooms", String(filters.bedrooms));
 
-      if (filters?.city) params.append("city", filters.city);
-      if (filters?.scope) params.append("scope", filters.scope);
+      // SCOPE: this page is the "For Sale" / "For Rent" tabs (and the
+      // plain Navbar links) — it must search the agent-owned `properties`
+      // table ONLY. It must NOT default to scope=all, since that would
+      // merge in developer_properties on every plain search. The
+      // "Developer" tab is a completely separate route (/developer) that
+      // owns its own query against developer_properties. scope=all is
+      // therefore only forwarded here if it was explicitly present on the
+      // incoming filters (e.g. a URL that genuinely already carried it,
+      // via the searchParamsString effect below).
+      if (filters?.scope === "all") {
+        params.append("scope", "all");
+      }
       if (sort && sort !== "priority") params.set("sort", sort);
 
       const res = await fetch(`/api/properties?${params}`);
@@ -706,11 +747,7 @@ function PropertiesPageInner() {
   // ── URL is the single source of truth for filters/page ──────────────────
   // Any change to filters (search box, PropertySearch panel, sort, page,
   // clear) goes through router.push/replace below, which updates
-  // searchParamsString, which re-runs this effect and re-fetches. This is
-  // also what keeps the address bar in sync with in-page searches — before
-  // this fix, only the very first HeroSearch navigation (a full
-  // window.location.href) ever touched the URL; subsequent PropertySearch
-  // searches updated state/results directly and left the URL stale.
+  // searchParamsString, which re-runs this effect and re-fetches.
   const searchParamsString = searchParams.toString();
   useEffect(() => {
     const urlParams = new URLSearchParams(searchParamsString);
@@ -719,7 +756,9 @@ function PropertiesPageInner() {
     const listingType = urlParams.get("listingType");
     const search = urlParams.get("search");
     const name = urlParams.get("name");
-    const type = urlParams.get("type");
+    // HeroSearch pushes property type as `propertyType`; keep `type` as a
+    // fallback for any older links that still use the previous key.
+    const propertyType = urlParams.get("propertyType") ?? urlParams.get("type");
     const minPrice = urlParams.get("minPrice");
     const maxPrice = urlParams.get("maxPrice");
     const bedrooms = urlParams.get("bedrooms");
@@ -731,12 +770,16 @@ function PropertiesPageInner() {
     if (listingType) initialFilters.listingType = listingType;
     if (search) initialFilters.search = search;
     if (name) initialFilters.name = name;
-    if (type) initialFilters.type = type;
+    if (propertyType) initialFilters.type = propertyType;
     if (minPrice) initialFilters.minPrice = Number(minPrice);
     if (maxPrice) initialFilters.maxPrice = Number(maxPrice);
     if (bedrooms) initialFilters.bedrooms = bedrooms;
     if (city) initialFilters.city = city;
-    if (scope) initialFilters.scope = scope;
+    // scope is only ever picked up here if the URL genuinely carries it
+    // (e.g. a link built with ?scope=all, or a legacy ?listingType=developer
+    // URL). Plain For Sale / For Rent navigation never sets either, so this
+    // stays agent-only by default.
+    if (scope || listingType === "developer") initialFilters.scope = "all";
 
     const hasFilters = Object.keys(initialFilters).length > 0;
     const pageNum = page ? Number(page) : 1;
@@ -767,10 +810,6 @@ function PropertiesPageInner() {
     router.push(finalQs ? `/properties?${finalQs}` : "/properties", {
       scroll: false,
     });
-  };
-
-  const handleSearch = (f: any) => {
-    pushFilters(f, 1, sortBy);
   };
 
   const handleSort = (v: string) => {
@@ -840,8 +879,31 @@ function PropertiesPageInner() {
                 <span className="block">Next Home.</span>
               </h1>
 
-              <div className="mb-8 max-w-xl">
-                <PropertySearch onSearch={handleSearch} />
+              <div className="mb-8 w-full max-w-3xl">
+                {/* HeroSearch manages its own navigation: it calls
+                    router.push straight to /properties (For Sale/For Rent,
+                    no scope) or /developer (Developer tab, scope=all),
+                    building its query string itself — see its
+                    handleSearch(). That URL change is what the
+                    searchParamsString effect above reacts to and re-fetches
+                    from, so this page doesn't need to intercept onSearch
+                    to push anything itself; a no-op keeps the prop
+                    contract satisfied without fighting HeroSearch's own
+                    push.
+
+                    embedded: HeroSearch's default layout is an absolute-
+                    positioned overlay meant to float over a hero
+                    background image (page-width, negative margin-top).
+                    That breaks completely when placed inline next to this
+                    page's own heading/results panel — it pops out of this
+                    column and overlaps everything. `embedded` switches it
+                    to a normal static block that fills this container
+                    instead. */}
+                <HeroSearch
+                  onSearch={() => {}}
+                  embedded
+                  tabs={["For Sale", "For Rent"]}
+                />
               </div>
             </div>
 
@@ -1256,7 +1318,6 @@ function PropertiesPageInner() {
     </div>
   );
 }
-
 
 export default function PropertiesPage() {
   return (

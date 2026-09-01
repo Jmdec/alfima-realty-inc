@@ -33,17 +33,16 @@ export default function HomePage({ onSearch }: HeroSectionProps) {
     fetchProperties();
   }, []);
 
-  const handleSearch = (filters: any) => {
-    const params = new URLSearchParams();
-    if (filters.search) params.append("search", filters.search);
-    if (filters.listingType) params.append("listingType", filters.listingType);
-    if (filters.type) params.append("type", filters.type);
-    if (filters.minPrice) params.append("minPrice", filters.minPrice);
-    if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
-    if (filters.bedrooms) params.append("bedrooms", filters.bedrooms);
-    if (filters.city) params.append("city", filters.city);
-    window.location.href = `/properties?${params.toString()}`;
-  };
+  // HeroSearch already owns navigation internally — it knows to push to
+  // /developer?...&scope=all when the Developer tab is active, and to
+  // /properties?...&listingType=sale|rent otherwise (see its own
+  // handleSearch/router.push). This page previously duplicated that
+  // routing with its own window.location.href call, which always went to
+  // /properties regardless of tab and full-page-reloaded on top of
+  // HeroSearch's own router.push — that's what produced the broken
+  // /properties?...&listingType=developer URL. No-op here so HeroSearch's
+  // own navigation is the only one that runs.
+  const handleSearch = () => {};
 
   return (
     <div className="w-full">

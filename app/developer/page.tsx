@@ -11,7 +11,7 @@ import {
   getFavoriteKey,
   normalizeSource,
 } from "@/components/developer-property-card";
-import { PropertySearch } from "@/components/property/property-search";
+import { DeveloperHeroSearch } from "@/components/home/DeveloperHeroSearch";
 import {
   Home,
   Building2,
@@ -652,7 +652,7 @@ function PropertiesPageInner() {
               </h1>
 
               <div className="mb-6 max-w-xl">
-                <PropertySearch onSearch={handleSearch} />
+                <DeveloperHeroSearch onSearch={handleSearch} />
               </div>
 
               {/* ── Developer filters ── */}

@@ -14,8 +14,38 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
+const ALL_TABS = ["For Sale", "For Rent", "Developer"] as const;
+type Tab = (typeof ALL_TABS)[number];
+
 interface HeroSearchProps {
   onSearch: (filters: any) => void;
+  /**
+   * Default (false): renders as the full-bleed overlay hero card —
+   * position:absolute, a large negative margin-top, and page-width
+   * max-width — meant to float over a hero background image (e.g. the
+   * home page).
+   *
+   * embedded (true): renders as a normal, statically-positioned block
+   * that fills its parent container instead. Use this whenever HeroSearch
+   * is placed inside another page's own layout (e.g. next to a heading on
+   * a results page) rather than floating over a hero image — otherwise
+   * the absolute positioning breaks it out of its parent column and
+   * stacks it on top of whatever else is on the page.
+   */
+  embedded?: boolean;
+  /**
+   * Which tabs to show. Defaults to all three (For Sale / For Rent /
+   * Developer) — used on the home/landing page where visitors can search
+   * any scope from one shared search bar.
+   *
+   * Pass a restricted list (e.g. ["For Sale", "For Rent"]) on pages that
+   * already represent one scope — e.g. /properties, which only ever
+   * queries the agent-owned `properties` table and has its own separate
+   * /developer page for the developer_properties scope. Showing a
+   * "Developer" tab there would just bounce the user to a different page
+   * entirely, which is confusing when they're already mid-search.
+   */
+  tabs?: readonly Tab[];
 }
 
 const PROPERTY_TYPES = ["Residential", "Commercial", "Office Space"];
@@ -39,19 +69,6 @@ const BEDROOMS = [
   "5+ Bedrooms",
 ];
 
-const TABS = ["For Sale", "For Rent", "Developer"] as const;
-type Tab = (typeof TABS)[number];
-
-// Strips diacritics and case so "Baguio" matches "baguio" / "bagui" the
-// same way PropertySearch's City combobox already does — kept identical
-// on purpose so both fields behave the same way for the same input.
-const normalizeText = (text: string) =>
-  text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-
 /* ── Dropdown — renders panel via Portal into document.body ─── */
 function FieldDropdown({
   label,
@@ -73,7 +90,6 @@ function FieldDropdown({
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  // Ensure portal only runs client-side
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -234,8 +250,12 @@ function FieldDropdown({
 }
 
 /* ── Main ────────────────────────────────────────────────────── */
-export function HeroSearch({ onSearch }: HeroSearchProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("For Sale");
+export function HeroSearch({
+  onSearch,
+  embedded = false,
+  tabs = ALL_TABS,
+}: HeroSearchProps) {
+  const [activeTab, setActiveTab] = useState<Tab>(tabs[0]);
   const [location, setLocation] = useState("");
   const [propType, setPropType] = useState("");
   const [budget, setBudget] = useState("");
@@ -245,191 +265,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
 
   const router = useRouter();
 
-  // ── Live city autocomplete for the location input ──────────────
-  // Mirrors the City combobox in PropertySearch: a flat list of distinct
-  // city names fetched once, then substring-matched live against
-  // whatever's typed here (letter-by-letter, not whole-word).
-  const [cities, setCities] = useState<string[]>([]);
-  const [locSuggestOpen, setLocSuggestOpen] = useState(false);
-  const locFieldRef = useRef<HTMLDivElement>(null);
-  const locSuggestPanelRef = useRef<HTMLDivElement>(null);
-  const [locCoords, setLocCoords] = useState({ top: 0, left: 0, width: 0 });
-
-  // Fetch the distinct city list once on mount. Intentionally
-  // scope=all and no listing_type filter — this is just for
-  // suggestions, so it should offer every known city regardless of
-  // which tab (Buy/Rent/Developer) is currently active, and regardless
-  // of the listing_type the eventual search will use.
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadCities = async () => {
-      try {
-        const params = new URLSearchParams({
-          page: "1",
-          per_page: "1000",
-          status: "active",
-          scope: "all",
-        });
-        const res = await fetch(`/api/properties?${params}`);
-        if (!res.ok) throw new Error("Failed to fetch properties");
-        const data = await res.json();
-        if (cancelled) return;
-
-        const rows: any[] = Array.isArray(data?.data) ? data.data : [];
-        const extracted = rows
-          .map((p) => p?.city ?? p?.City ?? "")
-          .filter(
-            (c): c is string => typeof c === "string" && c.trim() !== "",
-          );
-
-        setCities(
-          Array.from(new Set(extracted)).sort((a, b) => a.localeCompare(b)),
-        );
-      } catch (err) {
-        console.error("Failed to load city suggestions:", err);
-      }
-    };
-
-    loadCities();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const updateLocCoords = () => {
-    const el = locFieldRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setLocCoords({
-      top: r.bottom + window.scrollY + 8,
-      left: r.left + window.scrollX,
-      width: r.width,
-    });
-  };
-
-  // Recompute suggestions live off the same `location` state the input
-  // already uses — every keystroke re-filters, same as PropertySearch's
-  // City field. Substring match (normalized), not whole-word.
-  const filteredLocationSuggestions =
-    location.trim() === ""
-      ? []
-      : cities
-          .filter((c) =>
-            normalizeText(c).includes(normalizeText(location)),
-          )
-          .sort((a, b) => {
-            const q = normalizeText(location);
-            const aStarts = normalizeText(a).startsWith(q);
-            const bStarts = normalizeText(b).startsWith(q);
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-            return a.localeCompare(b);
-          })
-          .slice(0, 8);
-
-  // Close on outside click / Escape — same pattern as PropertySearch's
-  // city menu, since this panel is also portaled to document.body and
-  // can't rely on locFieldRef alone to contain clicks on itself.
-  useEffect(() => {
-    if (!locSuggestOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const insideField = locFieldRef.current?.contains(target);
-      const insidePanel = locSuggestPanelRef.current?.contains(target);
-      if (!insideField && !insidePanel) {
-        setLocSuggestOpen(false);
-      }
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLocSuggestOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [locSuggestOpen]);
-
-  const [locMounted, setLocMounted] = useState(false);
-  useEffect(() => setLocMounted(true), []);
-
-  const locationSuggestPanel =
-    locSuggestOpen &&
-    locMounted &&
-    location.trim() !== "" &&
-    filteredLocationSuggestions.length > 0
-      ? createPortal(
-          <div
-            ref={locSuggestPanelRef}
-            style={{
-              position: "absolute",
-              top: locCoords.top,
-              left: locCoords.left,
-              width: locCoords.width,
-              background: "#fff",
-              borderRadius: 14,
-              boxShadow:
-                "0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid rgba(0,0,0,0.06)",
-              zIndex: 99999,
-              maxHeight: 260,
-              overflowY: "auto",
-              animation: "hs2-dropIn 0.18s ease",
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {filteredLocationSuggestions.map((c) => (
-              <div
-                key={c}
-                style={{
-                  padding: "10px 16px",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  fontFamily: "'DM Sans', sans-serif",
-                  color: "#374151",
-                  cursor: "pointer",
-                  transition: "background 0.12s",
-                }}
-                onClick={() => {
-                  setLocation(c);
-                  setLocSuggestOpen(false);
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "#f9fafb";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "transparent";
-                }}
-              >
-                {c}
-              </div>
-            ))}
-          </div>,
-          document.body,
-        )
-      : null;
-
-  // NOTE: There used to be an `updateCityUrl` helper wired to the location
-  // input's onChange that called `router.replace` on every keystroke — that
-  // caused typing to race with itself and go stale when the tab changed.
-  // That's gone. `handleSearch` below is the single source of truth for
-  // navigation — it only fires explicitly (Enter key or the Search button),
-  // builds a fresh, internally-consistent set of params from all current
-  // field values at once, and pushes it via next/navigation's router
-  // instead of a hard `window.location.href` reload. That means:
-  //   - the address bar updates immediately, client-side, on Enter/Search
-  //   - the destination page (e.g. /properties, which watches
-  //     `searchParams` and refetches whenever it changes) re-renders from
-  //     the new params without a full page reload
-  //   - `city` (mirrored from `location`, see below) always lands in the
-  //     pushed URL exactly once, in sync with `search`, instead of a stale
-  //     value surviving a race between typing and a hard navigation.
+  // Single source of truth for navigation — fires only on Enter or the
+  // Search button, builds params from all current field values at once,
+  // and pushes via next/navigation's router (no full page reload).
   const handleSearch = () => {
     const [minPrice, maxPrice] = budget ? budget.split("-") : ["", ""];
     const listingType =
@@ -440,17 +278,11 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           : activeTab === "Developer"
             ? "developer"
             : "";
-        
+
     onSearch({
       search: location,
-      // Also pass the typed text as `city` — the input's own placeholder
-      // ("City, neighborhood, or address…") promises location matching,
-      // but the properties page only had a generic `search` param wired
-      // up, which searched title/description and could miss a plain city
-      // name. Sending both lets the backend match on either.
-      // city: location,
       listingType,
-      type: propType,
+      propertyType: propType,
       minPrice,
       maxPrice,
       bedrooms,
@@ -460,7 +292,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
 
     if (location) {
       params.set("search", location);
-      // params.set("city", location);
     }
     if (listingType !== "developer") {
       params.set("listingType", listingType);
@@ -468,7 +299,10 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
     if (listingType === "developer") {
       params.set("scope", "all");
     }
-    if (propType) params.set("type", propType);
+    // FIX: backend's $param() helper looks for `property_type` or
+    // `propertyType` — it never reads a plain `type` key, so this filter
+    // was being silently ignored (or worse, matching nothing) before.
+    if (propType) params.set("propertyType", propType);
     if (minPrice) params.set("minPrice", minPrice);
     if (maxPrice) params.set("maxPrice", maxPrice);
     if (bedrooms) params.set("bedrooms", bedrooms);
@@ -476,18 +310,35 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
     const destination =
       listingType === "developer" ? "/developer" : "/properties";
 
-    // Client-side navigation — updates the URL/slug params live without a
-    // full-page reload, and lets the destination page's own searchParams
-    // effect pick up the change and refetch.
     router.push(`${destination}?${params.toString()}`);
   };
 
   const activeCount = [propType, budget, bedrooms].filter(Boolean).length;
 
+  // EMBEDDED FIX: the default layout relies on `position: absolute` (both
+  // via the .hs2-section CSS-in-JS rule below and the Tailwind utilities
+  // `absolute`, `-mt-8`, `md:-mt-[60px]`, `lg:-mt-[75px]` etc. applied
+  // directly on the <section>), pulled up with a large negative
+  // margin-top and pinned to `left: 50%` at page width. That's correct
+  // when HeroSearch is the sole hero content floating over a background
+  // image, but breaks completely when embedded next to other content
+  // (e.g. a heading, a results panel) — it pops out of its parent column
+  // and overlaps everything around it, which is exactly the bug being
+  // fixed here. In embedded mode we skip all of those utilities entirely
+  // and let the extra `.hs2-section--embedded` CSS rule (added below)
+  // reset position/margin/width to normal static, in-flow values.
+  const sectionClassName = embedded
+    ? "hs2-section hs2-section--embedded relative w-full bg-transparent z-10 box-border flex flex-row"
+    : `hs2-section absolute w-full bg-transparent z-10 box-border
+  px-3 pb-10 -mt-8
+  sm:px-4 sm:-mt-10
+  md:px-[124px] md:pt-[45px] md:pb-[330px] md:-mt-[60px]
+  lg:px-[144px] lg:pt-0 lg:pb-[60px] lg:-mt-[75px]
+  flex flex-row`;
+
   return (
     <>
       <style>{`
-        
           @keyframes hs2-dropIn {
             from { opacity: 0; transform: translateY(-6px); }
             to   { opacity: 1; transform: translateY(0); }
@@ -517,6 +368,24 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           box-sizing: border-box;
         }
 
+        /* EMBEDDED MODE — overrides the overlay positioning above so
+           HeroSearch behaves like a normal block in its parent's layout
+           flow. Same specificity as .hs2-section (single class), so this
+           wins simply by being declared later in this stylesheet. */
+        .hs2-section--embedded {
+          position: relative;
+          z-index: auto;
+          width: 100%;
+          max-width: none;
+          margin-top: 0;
+          left: 0;
+          transform: none;
+          padding: 0;
+        }
+        .hs2-section--embedded .hs2-wrapper {
+          padding: 0;
+        }
+
         @media (max-width: 1024px) {
           .hs2-section {
             padding-left: 32px;
@@ -538,18 +407,14 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           }
         }
 
-          /* ── Wrapper ───────────────────────── */
           .hs2-wrapper {
           position: relative;
           width: 100%;
           background: transparent;
           z-index: 10;
-
-          /* Creates actual space between hero and featured properties */
           padding: 0 0 20px;
         }
 
-          /* ── Tabs ──────────────────────────── */
           .hs2-tabs {
             display: flex;
             align-items: center;
@@ -598,7 +463,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             flex-shrink: 0;
           }
 
-          /* ── Card ──────────────────────────── */
           .hs2-card {
             background: rgba(255,255,255,0.97);
             backdrop-filter: blur(20px);
@@ -606,7 +470,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             border-radius: 0 16px 16px 16px;
             box-shadow: 0 20px 64px rgba(0,0,0,0.38);
             transition: box-shadow 0.25s ease;
-            /* MUST be visible so dropdown panels escape the card */
             overflow: visible !important;
             position: relative;
           }
@@ -615,7 +478,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             box-shadow: 0 24px 80px rgba(0,0,0,0.45), 0 0 0 2px rgba(196,30,58,0.22);
           }
 
-          /* ── Top row ───────────────────────── */
           .hs2-top-row {
             display: flex;
             align-items: center;
@@ -661,7 +523,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             margin: 0 12px; flex-shrink: 0;
           }
 
-          /* Mobile-only filters toggle — hidden on desktop */
           .hs2-filters-toggle {
             display: none;
             align-items: center;
@@ -688,7 +549,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             display: flex; align-items: center; justify-content: center;
           }
 
-          /* ── Search button ─────────────────── */
           .hs2-search-btn {
             background: linear-gradient(135deg, #0f1b4d 0%, #5a2d5f 50%, #c41e3a 100%);
             color: #fff;
@@ -711,12 +571,10 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           }
           .hs2-search-btn:active { transform: translateY(0); }
 
-          /* ── Desktop filter row ────────────── */
           .hs2-filters-row {
             display: flex;
             align-items: stretch;
             border-top: 1px solid rgba(0,0,0,0.07);
-            /* clip the row visually but let dropdowns escape via z-index */
             overflow: visible;
             position: relative;
             z-index: 10;
@@ -724,7 +582,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             border-radius: 0 0 16px 16px;
           }
 
-          /* ── Dropdown shared ───────────────── */
           .hs2-dropdown {
             flex: 1;
             padding: 10px 16px;
@@ -754,7 +611,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           }
           .hs2-dropdown-value.selected { color: #111827; font-weight: 600; }
 
-          /* ── Dropdown panel ────────────────── */
           .hs2-panel {
             background: #fff;
             border-radius: 14px;
@@ -783,7 +639,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             border-radius: 50%; background: #c41e3a; flex-shrink: 0;
           }
 
-          /* ── Mobile drawer ─────────────────── */
           .hs2-drawer {
             border-top: 1px solid rgba(0,0,0,0.07);
             animation: hs2-drawerIn 0.22s ease;
@@ -805,8 +660,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             border-bottom: none;
           }
 
-          /* ══ RESPONSIVE ═══════════════════════════════ */
-
           @media (max-width: 1024px) {
             .hs2-wrapper { padding: 0 32px; }
           }
@@ -814,11 +667,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
           @media (max-width: 768px) {
             .hs2-wrapper { padding: 0 16px; }
 
-            /* Hide desktop filters row, show toggle button */
             .hs2-filters-row { display: none; }
             .hs2-filters-toggle { display: flex; }
 
-            /* On mobile, top-row is the only visible part of the card — round all corners */
             .hs2-top-row {
               padding: 8px 8px 8px 14px;
               min-height: 58px;
@@ -841,23 +692,14 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             .hs2-search-btn { padding: 0 14px; gap: 6px; }
             .hs2-search-btn span { display: none; }
 
-            /* Show icon-only button on very small screens */
             .hs2-search-btn::after { content: 'Go'; font-size: 13px; font-weight: 800; }
           }
         `}</style>
 
-      <section
-        className="hs2-section absolute w-full bg-transparent z-10 box-border
-  px-3 pb-10 -mt-8
-  sm:px-4 sm:-mt-10
-  md:px-[124px] md:pt-[45px] md:pb-[330px] md:-mt-[60px]
-  lg:px-[144px] lg:pt-0 lg:pb-[60px] lg:-mt-[75px]
-  flex flex-row"
-      >
+      <section className={sectionClassName}>
         <div className="hs2-wrapper">
-          {/* Tabs */}
           <div className="hs2-tabs">
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button
@@ -888,11 +730,9 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
             )}
           </div>
 
-          {/* Card */}
           <div className="hs2-card">
-            {/* Top row: location + (mobile: filters toggle) + search btn */}
             <div className="hs2-top-row">
-              <div className="hs2-location" ref={locFieldRef}>
+              <div className="hs2-location">
                 <MapPin
                   size={16}
                   color={focused ? "#c41e3a" : "#c4c9d4"}
@@ -901,18 +741,8 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
                 <input
                   type="text"
                   value={location}
-                  onChange={(e) => {
-                    setLocation(e.target.value);
-                    setLocSuggestOpen(true);
-                    updateLocCoords();
-                  }}
-                  onFocus={() => {
-                    setFocused(true);
-                    if (location.trim() !== "") {
-                      setLocSuggestOpen(true);
-                      updateLocCoords();
-                    }
-                  }}
+                  onChange={(e) => setLocation(e.target.value)}
+                  onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder="City, neighborhood, or address…"
@@ -920,20 +750,15 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
                 {location && (
                   <button
                     className="hs2-clear-btn"
-                    onClick={() => {
-                      setLocation("");
-                      setLocSuggestOpen(false);
-                    }}
+                    onClick={() => setLocation("")}
                   >
                     ✕
                   </button>
                 )}
-                {locationSuggestPanel}
               </div>
 
               <div className="hs2-sep" />
 
-              {/* Mobile-only filters toggle */}
               <button
                 className="hs2-filters-toggle"
                 onClick={() => setFiltersOpen((o) => !o)}
@@ -951,7 +776,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
               </button>
             </div>
 
-            {/* Desktop: filter row always visible below */}
             <div className="hs2-filters-row">
               <FieldDropdown
                 label="Property Type"
@@ -979,7 +803,6 @@ export function HeroSearch({ onSearch }: HeroSearchProps) {
               />
             </div>
 
-            {/* Mobile: collapsible drawer */}
             {filtersOpen && (
               <div className="hs2-drawer">
                 <div className="hs2-drawer-grid">

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useLayoutEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
-import { Search, SlidersHorizontal, ChevronDown } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function normalizeListingTypeParam(v: string): string {
@@ -74,36 +73,29 @@ export function PropertySearch({
   );
   const initialMinPrice = searchParams.get("minPrice");
   const initialMaxPrice = searchParams.get("maxPrice");
-  // BUG FIX: this used to be hardcoded to "all" in handleSearch/handleReset
-  // below, regardless of what scope the page actually arrived with. A Hero
-  // "For Sale" search (agent-only, no ?scope param) would then have
-  // developer_properties silently mixed back in the moment this panel
-  // re-searched or reset — even though the user only asked for agent
-  // listings. Seed it from the URL instead, same pattern as every other
-  // field here, so this panel stays additive rather than force-widening
-  // the query scope.
-  const initialScope = searchParams.get("scope") ?? "";
+  const initialCity = searchParams.get("city") ?? "";
+  const initialSearch = searchParams.get("search") ?? "";
   const hasInitialFilters = Boolean(
     searchParams.get("propertyType") ||
     initialMinPrice ||
     initialMaxPrice ||
     searchParams.get("bedrooms") ||
-    searchParams.get("city"),
+    initialCity,
   );
 
   const [isExpanded, setIsExpanded] = useState(hasInitialFilters);
-  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
+  const [search, setSearch] = useState(initialSearch);
   const [listingType, setListingType] = useState<string>(initialListingType);
-  const [scope, setScope] = useState<string>(initialScope); // NEW
   const [type, setType] = useState<string>(
     () => searchParams.get("propertyType") ?? "",
   );
   // Min/Max Price default to the actual min/max price found among the
   // properties currently in the catalog (derived below from the same
-  // fetch used for the city list), not a fixed prop — so e.g. a catalog
-  // ranging ₱4.50M–₱21.32M shows that range, not a generic 0–10M.
-  // priceBounds is null until that fetch resolves; the minPriceRange/
-  // maxPriceRange props are only a fallback if it never does.
+  // fetch used to compute price bounds), not a fixed prop — so e.g. a
+  // catalog ranging ₱4.50M–₱21.32M shows that range, not a generic
+  // 0–10M. priceBounds is null until that fetch resolves; the
+  // minPriceRange/maxPriceRange props are only a fallback if it never
+  // does.
   const [priceBounds, setPriceBounds] = useState<{
     min: number;
     max: number;
@@ -122,35 +114,18 @@ export function PropertySearch({
   const [bedrooms, setBedrooms] = useState<string>(
     () => searchParams.get("bedrooms") ?? "",
   );
-  const [city, setCity] = useState<string>(
-    () => searchParams.get("city") ?? "",
-  );
 
-  // Cities fetched dynamically from all properties (sale + rent), reusing
-  // the same /api/properties endpoint the results page already calls —
-  // no dedicated /api/properties/cities route required.
-  const [cities, setCities] = useState<string[]>([]);
-  const [citiesLoading, setCitiesLoading] = useState(true);
-  const [citiesError, setCitiesError] = useState(false);
-
-  // Custom combobox state — native <datalist> can't be restyled to match
-  // the app's theme, so the dropdown list below is built by hand.
-  const [cityMenuOpen, setCityMenuOpen] = useState(false);
-  const cityFieldRef = useRef<HTMLDivElement>(null);
-  const cityInputWrapRef = useRef<HTMLDivElement>(null);
-
-  // The dropdown panel is rendered in a portal (see below), so it needs its
-  // own position computed from the input's bounding box. Any ancestor with
-  // overflow-hidden (e.g. the hero section's decorative clipping) would
-  // otherwise chop the panel off no matter what z-index it has.
-  const [menuRect, setMenuRect] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  // City — plain text field. No autosuggest/dropdown: it used to be a
+  // custom combobox backed by a portaled dropdown of every distinct city
+  // in the catalog, but that machinery has been removed per request.
+  // `search` (free text) and `city` are still two independent filters
+  // that get ANDed together server-side, so each one now clears the
+  // other the moment the user actually edits it — previously only the
+  // City dropdown did this (when a city was picked, it cleared `search`),
+  // but typing a *new* value into the top search box never cleared a
+  // stale `city` left over from an earlier search. That stale AND is
+  // what made every subsequent search silently return 0 results.
+  const [city, setCity] = useState<string>(initialCity);
 
   // Re-sync default price fields whenever the derived catalog range
   // (or, failing that, the prop fallback) arrives/changes, as long as
@@ -166,53 +141,29 @@ export function PropertySearch({
     setMaxPrice(String(priceBounds?.max ?? maxPriceRange));
   }, [priceBounds, maxPriceRange]);
 
-  const updateMenuRect = () => {
-    const el = cityInputWrapRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setMenuRect({ top: r.bottom + 4, left: r.left, width: r.width });
-  };
-
-  useLayoutEffect(() => {
-    if (!cityMenuOpen) return;
-    updateMenuRect();
-
-    const handle = () => updateMenuRect();
-    window.addEventListener("scroll", handle, true);
-    window.addEventListener("resize", handle);
-    return () => {
-      window.removeEventListener("scroll", handle, true);
-      window.removeEventListener("resize", handle);
-    };
-  }, [cityMenuOpen]);
-
+  // Fetch catalog data purely to derive the min/max price bounds shown in
+  // this panel's UI — scoped to the selected listing type (Buy/Rent), same
+  // as the results page's own query. This panel backs the "For Sale" /
+  // "For Rent" search results page (properties-client.tsx), which only
+  // ever searches the agent-owned `properties` table — so this probe
+  // intentionally does NOT send scope=all, and the derived min/max range
+  // reflects that same agent-only pool rather than pulling in
+  // developer_properties. This is separate from the actual search request
+  // in handleSearch below, and never affects which properties are
+  // actually returned by Search/Apply/Reset.
   useEffect(() => {
     let cancelled = false;
 
-    const loadCatalogData = async () => {
-      setCitiesLoading(true);
-      setCitiesError(false);
+    const loadPriceBounds = async () => {
       try {
         const params = new URLSearchParams();
         params.append("page", "1");
-        // Pull a large page so the derived city/price data covers the
-        // catalog for the selected type. If your backend caps per_page
-        // lower than this, it'll just clamp to that cap — still fine for
-        // building a distinct city list and price range.
         params.append("per_page", "1000");
         params.append("status", "active");
-        // NOTE: this fetch is only used to populate the city dropdown and
-        // the min/max price bounds shown in this panel's UI — it is
-        // intentionally separate from the actual search request below,
-        // so it always looks across both agent and developer inventory
-        // regardless of the active scope. This does not affect which
-        // properties are returned by Search/Apply/Reset.
-        params.append("scope", "all");
+        // Intentionally no scope param — this page/panel only searches
+        // the agent `properties` table, matching fetchProperties() in
+        // properties-client.tsx.
 
-        // Scope the city list and price bounds to the selected listing
-        // type (Buy/Rent), same as the results page's own query — so
-        // picking "Rent" derives its 5 properties' price range and
-        // cities, not the whole catalog's.
         const listingTypeParam = normalizeListingTypeParam(listingType);
         if (listingTypeParam) params.append("listing_type", listingTypeParam);
 
@@ -228,17 +179,6 @@ export function PropertySearch({
           rowMatchesListingType(p?.listing_type, listingType),
         );
 
-        const extracted = rows
-          .map((p) => p?.city ?? p?.City ?? "")
-          .filter((c): c is string => typeof c === "string" && c.trim() !== "");
-
-        const cleaned = Array.from(new Set(extracted)).sort((a, b) =>
-          a.localeCompare(b),
-        );
-
-        setCities(cleaned);
-
-        // Derive the min/max price from this same, type-filtered batch.
         // Rent listings are priced per month (price_per_month), sale
         // listings by price — same logic PreviewRow uses to display.
         const prices = rows
@@ -261,56 +201,16 @@ export function PropertySearch({
             : null,
         );
       } catch (err) {
-        console.error("Failed to fetch catalog data:", err);
-        if (!cancelled) {
-          setCitiesError(true);
-          setPriceBounds(null);
-        }
-      } finally {
-        if (!cancelled) setCitiesLoading(false);
+        console.error("Failed to fetch catalog price bounds:", err);
+        if (!cancelled) setPriceBounds(null);
       }
     };
 
-    loadCatalogData();
+    loadPriceBounds();
     return () => {
       cancelled = true;
     };
   }, [listingType]);
-
-  // Close the city dropdown on outside click or Escape. Since the menu is
-  // now portaled to document.body, we can't rely on cityFieldRef alone to
-  // contain clicks on the menu itself — the menu has its own ref too.
-  const cityMenuPanelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!cityMenuOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const insideField = cityFieldRef.current?.contains(target);
-      const insideMenu = cityMenuPanelRef.current?.contains(target);
-      if (!insideField && !insideMenu) {
-        setCityMenuOpen(false);
-      }
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCityMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [cityMenuOpen]);
-
-  const filteredCities =
-    city.trim() === ""
-      ? cities
-      : cities.filter((c) =>
-          c.toLowerCase().includes(city.trim().toLowerCase()),
-        );
 
   const handleSearch = () => {
     onSearch({
@@ -333,15 +233,11 @@ export function PropertySearch({
       // falsiness, since 0 is falsy as a number but a legit selection here.
       bedrooms: bedrooms !== "" ? parseInt(bedrooms) : undefined,
       city: city || undefined,
-      // BUG FIX: this used to always send "all", which force-widened
-      // every re-search from this panel into the merged agent+developer
-      // query (see PropertyController::index — scope=all is what selects
-      // indexMerged over indexAgentOnly), even for a page that started
-      // out agent-only (e.g. a Hero "For Sale" search, which sends no
-      // scope at all). Send whatever scope the page is already in
-      // instead — this panel should refine the existing search, not
-      // silently broaden its source.
-      scope: scope || undefined,
+      // This panel only ever drives the agent-only "For Sale" / "For Rent"
+      // results page — it never sets scope, so the request stays scoped
+      // to the `properties` table (see fetchProperties in
+      // properties-client.tsx, which now only sends scope=all when it's
+      // explicitly present in the filters object).
     });
   };
 
@@ -357,110 +253,8 @@ export function PropertySearch({
     setMinPrice(String(priceBounds?.min ?? minPriceRange));
     setMaxPrice(String(priceBounds?.max ?? maxPriceRange));
     setBedrooms("");
-    // BUG FIX: same as handleSearch above — reset must not force scope
-    // to "all" either. Clearing filters should return to the page's
-    // original scope (agent-only or merged, whichever it started as),
-    // not quietly widen it to include developer_properties.
-    onSearch({ scope: scope || undefined });
+    onSearch({});
   };
-
-  const cityPlaceholder = citiesLoading
-    ? "Loading cities…"
-    : citiesError || cities.length === 0
-      ? "Enter city..."
-      : "Enter or select city...";
-
-  const cityMenu =
-    cityMenuOpen && !citiesLoading && menuRect
-      ? createPortal(
-          <div
-            ref={cityMenuPanelRef}
-            style={{
-              position: "fixed",
-              top: menuRect.top,
-              left: menuRect.left,
-              width: menuRect.width,
-              // Match HeroSearch's own portaled dropdown so this panel
-              // can't get buried behind other fixed/portaled overlays on
-              // the page (which was making it appear not to open, and
-              // swallowing clicks meant for the city buttons underneath).
-              zIndex: 99999,
-              pointerEvents: "auto",
-            }}
-            className="max-h-56 overflow-y-auto rounded-lg border border-blue-700 bg-blue-950/95 backdrop-blur-md shadow-xl
-      [&::-webkit-scrollbar]:w-2
-      [&::-webkit-scrollbar-track]:bg-transparent
-      [&::-webkit-scrollbar-thumb]:bg-blue-600/60
-      [&::-webkit-scrollbar-thumb]:rounded-full
-      [&::-webkit-scrollbar-thumb:hover]:bg-blue-500/70"
-          >
-            <div
-              style={{
-                scrollbarWidth: "thin",
-                scrollbarColor: "rgb(37 99 235 / 0.6) transparent",
-              }}
-            >
-              {!citiesError && filteredCities.length > 0 ? (
-                <>
-                  {city.trim() !== "" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Confirming the typed value as-is should behave
-                        // the same as picking a city from the list below —
-                        // it's the user's explicit choice of location, so
-                        // it must supersede whatever's in the free-text
-                        // search box (see note on the city buttons below).
-                        setSearch("");
-                        setCityMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-blue-900/60 transition border-b border-blue-800"
-                    >
-                      Use "{city.trim()}"
-                    </button>
-                  )}
-                  {filteredCities.map((c) => (
-                    <button
-                      type="button"
-                      key={c}
-                      onClick={() => {
-                        setCity(c);
-                        // BUG FIX: the top search box and this City field
-                        // are independent filters that get ANDed together
-                        // server-side. If `search` still has a stale value
-                        // (e.g. seeded from a HeroSearch navigation like
-                        // ?search=calamba&city=calamba, or typed earlier in
-                        // this same panel), picking a *different* city here
-                        // — e.g. Makati — would silently AND "calamba" text
-                        // search with "city = Makati" and return zero
-                        // results, looking like the picker "does nothing".
-                        // An explicit city selection should supersede any
-                        // leftover free-text search, not fight it.
-                        setSearch("");
-                        setCityMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm transition ${
-                        c === city
-                          ? "bg-blue-700/50 text-white"
-                          : "text-white/90 hover:bg-blue-900/60"
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </>
-              ) : (
-                <p className="px-3 py-2 text-sm text-blue-300/70">
-                  {citiesError
-                    ? "Couldn't load cities — you can still type one."
-                    : "No matching cities."}
-                </p>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
 
   return (
     <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 mb-8">
@@ -472,7 +266,17 @@ export function PropertySearch({
             type="text"
             placeholder="Search by address, city, or keyword..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearch(val);
+              // `search` and `city` are ANDed together server-side. If a
+              // stale `city` from an earlier search is still set, typing
+              // a brand-new free-text query here would otherwise get
+              // silently ANDed against it and return 0 results no matter
+              // what's typed. An explicit new search supersedes a
+              // leftover city filter.
+              if (val && city) setCity("");
+            }}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="w-full h-12 pl-10 pr-4 py-3 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400/80 transition text-sm text-white placeholder-blue-300"
           />
@@ -584,37 +388,25 @@ export function PropertySearch({
             </select>
           </div>
 
-          {/* City — custom combobox: typed search + a dropdown styled like the other selects.
-              The panel itself is portaled to document.body (see cityMenu above) so an
-              ancestor's overflow-hidden (e.g. the hero section's decorative clipping)
-              can never chop it off. */}
-          <div ref={cityFieldRef} className="relative">
+          {/* City — plain text input, no autosuggest/dropdown */}
+          <div>
             <label className="block text-sm font-medium mb-2 text-white">
               City
             </label>
-            <div ref={cityInputWrapRef} className="relative">
-              <input
-                type="text"
-                placeholder={cityPlaceholder}
-                value={city}
-                onChange={(e) => {
-                  setCity(e.target.value);
-                  if (!citiesLoading) setCityMenuOpen(true);
-                }}
-                onFocus={() => {
-                  if (!citiesLoading) setCityMenuOpen(true);
-                }}
-                disabled={citiesLoading}
-                className="w-44 h-12 px-3 py-2 pr-8 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300 disabled:opacity-60"
-              />
-              <ChevronDown
-                className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-300 pointer-events-none transition-transform ${
-                  cityMenuOpen ? "rotate-180" : ""
-                }`}
-              />
-            </div>
-
-            {mounted && cityMenu}
+            <input
+              type="text"
+              placeholder="Enter city..."
+              value={city}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCity(val);
+                // Same reasoning as the top search box above, mirrored:
+                // an explicit city edit supersedes a leftover free-text
+                // search rather than getting ANDed against it.
+                if (val && search) setSearch("");
+              }}
+              className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white placeholder-blue-300"
+            />
           </div>
 
           {/* Actions */}
