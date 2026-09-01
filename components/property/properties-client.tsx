@@ -726,9 +726,29 @@ function PropertiesPageInner() {
       if (!res.ok) throw new Error("Failed to fetch");
 
       const data = await res.json();
-      setProperties(
-        (data.data ?? []).map((p: any) => ({ ...p, _source: p.source })),
-      );
+
+      // SAFETY NET: even though `listing_type` is sent above, don't trust
+      // the backend to have actually honored it — if it returns a mixed
+      // batch (e.g. rent rows leaking into a "sale" search), a row
+      // surviving here would otherwise render with no client-side check
+      // at all. Mirrors the same defensive filtering PropertySearch
+      // already does for its city list (see rowMatchesListingType there).
+      // NOTE: this only cleans up what's *displayed* — `total`/`last_page`
+      // below still come straight from the backend's own (possibly wrong)
+      // count, so the real fix belongs in the /api/properties handler's
+      // listing_type query clause.
+      const rawRows: any[] = data.data ?? [];
+      const listingTypeFilter = filters?.listingType
+        ? normalizeListingType(filters.listingType)
+        : "";
+      const rows = listingTypeFilter
+        ? rawRows.filter(
+            (p) =>
+              normalizeListingType(p.listing_type ?? "") === listingTypeFilter,
+          )
+        : rawRows;
+
+      setProperties(rows.map((p: any) => ({ ...p, _source: p.source })));
       setPagination({
         current_page: data.current_page,
         last_page: data.last_page,

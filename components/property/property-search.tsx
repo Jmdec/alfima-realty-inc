@@ -7,24 +7,23 @@ import { Button } from "@/components/ui/button";
 
 function normalizeListingTypeParam(v: string): string {
   const s = v.trim().toLowerCase();
-  if (s === "buy") return "sale";
+  if (s === "sale") return "sale";
   if (s === "rent") return "rent";
   return "";
 }
 
 // Inverse of normalizeListingTypeParam — turns the URL's stored value
 // ("sale" / "rent") back into this component's internal Buy/Rent state
-// ("buy" / "rent"), so a URL built by HeroSearch (?listingType=sale)
-// pre-selects "Buy" here instead of silently landing on "All Types".
+// pre-selects "Sale" here instead of silently landing on "All Types".
 function listingTypeFromUrl(v: string | null): string {
   const s = (v ?? "").trim().toLowerCase();
-  if (s === "sale") return "buy";
+  if (s === "sale") return "sale";
   if (s === "rent") return "rent";
   return "";
 }
 
 // Matches a row's raw listing_type value against the selected filter
-// ("" = all, "buy" = sale-type rows, "rent" = rent-type rows). Used as a
+// ("" = all, "sale" = sale-type rows, "rent" = rent-type rows). Used as a
 // client-side safety net in case the backend doesn't honor listing_type
 // on this endpoint or returns a broader set than requested.
 function rowMatchesListingType(
@@ -33,8 +32,8 @@ function rowMatchesListingType(
 ): boolean {
   if (!filter) return true;
   const v = (rawListingType ?? "").toString().trim().toLowerCase();
-  if (filter === "buy") return v === "for sale" || v === "sale" || v === "buy";
-  if (filter === "rent") return v === "for rent" || v === "rent";
+  if (filter === "sale") return v === "for sale";
+  if (filter === "rent") return v === "for rent";
   return true;
 }
 
@@ -213,25 +212,20 @@ export function PropertySearch({
   }, [listingType]);
 
   const handleSearch = () => {
-    onSearch({
+    console.log("searching with:", { search, city, listingType });
+  onSearch({
       search: search || undefined,
       listingType: listingType || undefined,
       type: type || undefined,
-      // BUG FIX: this used to always send `minPrice`/`maxPrice`, even when
-      // the user never touched those fields — they'd get silently filled
-      // with the derived catalog range (or, worse, collapse to a single
-      // exact value when only one listing in the catalog has a parseable
-      // price, e.g. min === max === 4,500,000). That turned an innocuous
-      // "search taguig/makati" into an unintended exact-price filter that
-      // excluded every other listing. Only forward these when the user
-      // (or an incoming URL) actually set them.
       minPrice:
         minPriceTouched.current && minPrice ? parseInt(minPrice) : undefined,
       maxPrice:
         maxPriceTouched.current && maxPrice ? parseInt(maxPrice) : undefined,
-      // bedrooms "0" (Studio) must still be sent — compare to "" not
-      // falsiness, since 0 is falsy as a number but a legit selection here.
       bedrooms: bedrooms !== "" ? parseInt(bedrooms) : undefined,
+      // City param is only ever set by the City field/dropdown itself
+      // (typed directly into it, or picked from the list) — not derived
+      // from the main search box. Typing in the main search box only
+      // ever sends `search`.
       city: city || undefined,
       // This panel only ever drives the agent-only "For Sale" / "For Rent"
       // results page — it never sets scope, so the request stays scoped
@@ -310,7 +304,7 @@ export function PropertySearch({
               className="w-full h-12 px-3 py-2 bg-blue-950/50 border border-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm text-white"
             >
               <option value="">All Types</option>
-              <option value="buy">Buy</option>
+              <option value="sale">Buy</option>
               <option value="rent">Rent</option>
             </select>
           </div>
