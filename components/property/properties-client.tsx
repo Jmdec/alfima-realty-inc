@@ -32,6 +32,7 @@ interface PropertyCardProps {
   property: Property;
   priority?: boolean;
   featured?: boolean;
+  initialIsFavorite?: boolean;
 }
 
 const SORT_OPTIONS = [

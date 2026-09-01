@@ -12,10 +12,7 @@ interface PropertyCardProps {
   property: Property;
   priority?: boolean;
   initialFavorite?: boolean;
-  // Top-slot cards (favorited-first / high-priority order — see
-  // FeaturedProperties' FEATURED_COUNT) get a slightly elevated visual
-  // treatment: gold ring + glow + a small "Top Pick" badge. Separate from
-  // `priority`, which only controls Next/Image eager loading.
+  initialIsFavorite?: boolean; // ← add this
   featured?: boolean;
 }
 
@@ -182,11 +179,12 @@ export function PropertyCard({
   property,
   priority = false,
   featured = false,
+  initialIsFavorite,
 }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite ?? false); // ← seeded here, first
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [favoriteLoaded, setFavoriteLoaded] = useState(false);
+  const [favoriteLoaded, setFavoriteLoaded] = useState(!!initialIsFavorite); // optional: skip loading flicker if we already know
   const { user } = useAuth();
 
   const source: FavoriteSource = normalizeSource(
