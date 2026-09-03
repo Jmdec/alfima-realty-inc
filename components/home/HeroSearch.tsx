@@ -17,6 +17,16 @@ import {
 const ALL_TABS = ["For Sale", "For Rent", "Developer"] as const;
 type Tab = (typeof ALL_TABS)[number];
 
+// Display-only labels — internal Tab values ("For Sale", "For Rent",
+// "Developer") stay unchanged everywhere else (state, listingType
+// mapping, tabs prop, DB queries). Only what's rendered on screen
+// changes here.
+const TAB_LABELS: Record<Tab, string> = {
+  "For Sale": "Resale",
+  "For Rent": "For Rent",
+  Developer: "Developer",
+};
+
 interface HeroSearchProps {
   onSearch: (filters: any) => void;
   /**
@@ -710,7 +720,7 @@ export function HeroSearch({
                   onClick={() => setActiveTab(tab)}
                   className={`hs2-tab ${isActive ? "active" : "inactive"}`}
                 >
-                  {tab}
+                  {TAB_LABELS[tab]}
                   {isActive && <div className="hs2-tab-bar" />}
                 </button>
               );

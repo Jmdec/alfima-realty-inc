@@ -25,7 +25,7 @@ interface DeveloperHeroSearchProps {
 }
 
 const LISTING_TYPES = [
-  { label: "For Sale", value: "sale" },
+  { label: "Resale", value: "sale" },
   { label: "For Rent", value: "rent" },
 ];
 
