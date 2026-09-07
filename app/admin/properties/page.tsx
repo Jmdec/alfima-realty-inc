@@ -1361,7 +1361,15 @@ function PropertyFormModal({
       ).forEach((k) => {
         if (form[k] !== "") metadataPayload[k] = form[k];
       });
-
+      if (isSale) {
+        const priceNum = stripCommas(priceDisplay);
+        metadataPayload.price = priceNum ? Number(priceNum) : null;
+        metadataPayload.price_per_month = null;
+      } else {
+        const rentNum = stripCommas(rentDisplay);
+        metadataPayload.price_per_month = rentNum ? Number(rentNum) : null;
+        metadataPayload.price = null;
+      }
       // Only send priority if it has a valid value (>= 1)
       const priority = Number(form.priority);
 
@@ -3051,7 +3059,7 @@ function ViewModal({
     property.listing_type === "rent"
       ? []
       : normalizeArray(property.financing_option);
-      
+
   // fetch full property details (includes unit_offerings, amenities, etc.)
   useEffect(() => {
     let cancelled = false;
@@ -3349,7 +3357,7 @@ function ViewModal({
                         </div>
                       ))}
                     </div>
-  {/* Financing Options — Sale listings only */}
+                    {/* Financing Options — Sale listings only */}
                     {financingOptions.length > 0 && (
                       <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 mb-3">
                         <p className="text-xs text-slate-400 mb-2">
@@ -4345,5 +4353,3 @@ export default function AdminPropertiesPage() {
     </>
   );
 }
-
-
