@@ -14,7 +14,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-const ALL_TABS = ["For Sale", "For Rent", "Developer"] as const;
+const ALL_TABS = ["Developer", "For Sale", "For Rent"] as const;
 type Tab = (typeof ALL_TABS)[number];
 
 // Display-only labels — internal Tab values ("For Sale", "For Rent",
@@ -22,9 +22,9 @@ type Tab = (typeof ALL_TABS)[number];
 // mapping, tabs prop, DB queries). Only what's rendered on screen
 // changes here.
 const TAB_LABELS: Record<Tab, string> = {
+  Developer: "Developer",
   "For Sale": "Resale",
   "For Rent": "For Rent",
-  Developer: "Developer",
 };
 
 interface HeroSearchProps {

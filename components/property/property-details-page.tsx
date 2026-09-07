@@ -372,29 +372,17 @@ function EstimatedPayments({
           <p className="text-sm text-white/80">Financing Option</p>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-auto ">
-            {availableCategories.map((category) => {
-              const isSelected = selectedCategory.id === category.id;
-
-              return (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(category)}
-                  className={`${availableCategories.length > 1 ? "sm:w-36" : "w-full"} h-8 rounded-md px-2 py-1.5 text-xs font-bold transition-colors ${
-                    isSelected
-                      ? "bg-white text-red-800"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  {category.label}
-                </button>
-              );
-            })}
+            {availableCategories.map((category) => (
+              <div
+                key={category.id}
+                className={`${availableCategories.length > 1 ? "sm:w-36" : "w-full"} h-8 rounded-md px-2 py-1.5 text-xs font-bold flex items-center justify-center bg-white/10 text-white`}
+              >
+                {category.label}
+              </div>
+            ))}
           </div>
         </div>
       )}
-
-   
     </div>
   );
 }
@@ -525,6 +513,7 @@ type LeadForm = {
   message: string;
   preferredContact: "sms" | "viber" | "email" | "phone" | "whatsapp";
   viewingDate: string;
+  viewingTime: string; // ← NEW
 };
 
 type ModalStep = "select-agent" | "lead-form" | "submitting" | "success";
@@ -776,6 +765,7 @@ function ContactAgentModal({
     message: "",
     preferredContact: "sms",
     viewingDate: "",
+    viewingTime: "", // ← NEW
   });
 
   const lockedFields = {
@@ -800,6 +790,7 @@ function ContactAgentModal({
           message: form.message || null,
           preferred_contact: form.preferredContact,
           viewing_date: form.viewingDate || null,
+          viewing_time: form.viewingTime || null, // ← NEW
         }),
       });
 
@@ -1181,9 +1172,18 @@ function AgentSelectStep({
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
-type ValidatableField = "name" | "phone" | "email" | "message" | "viewingDate";
+type ValidatableField =
+  | "name"
+  | "phone"
+  | "email"
+  | "message"
+  | "viewingDate"
+  | "viewingTime";
 
-const VALIDATORS: Record<ValidatableField, (v: string) => string | null> = {
+const VALIDATORS: Record<
+  ValidatableField,
+  (v: string, form?: LeadForm) => string | null
+> = {
   name: (v) => {
     if (!v.trim()) return "Full name is required";
     if (v.trim().length < 2) return "Name must be at least 2 characters";
@@ -1234,6 +1234,11 @@ const VALIDATORS: Record<ValidatableField, (v: string) => string | null> = {
       return "Viewing date must be within the next 6 months";
     return null;
   },
+  viewingTime: (v, form) => {
+    // Only required once a date has actually been picked
+    if (form?.viewingDate && !v) return "Please select a time slot";
+    return null;
+  },
 };
 
 function LeadFormStep({
@@ -1270,7 +1275,8 @@ function LeadFormStep({
     !!lockedFields?.[field];
 
   const runValidator = (key: keyof LeadForm, val: string): string | null => {
-    if (key in VALIDATORS) return VALIDATORS[key as ValidatableField](val);
+    if (key in VALIDATORS)
+      return VALIDATORS[key as ValidatableField](val, form);
     return null;
   };
 
@@ -1296,7 +1302,7 @@ function LeadFormStep({
     const e: Partial<Record<keyof LeadForm, string>> = {};
     (Object.keys(VALIDATORS) as ValidatableField[]).forEach((key) => {
       if (isLocked(key as any)) return;
-      const err = VALIDATORS[key](form[key] as string);
+      const err = VALIDATORS[key](form[key] as string, form);
       if (err) e[key] = err;
     });
     setErrors(e);
@@ -1306,6 +1312,7 @@ function LeadFormStep({
       email: true,
       message: true,
       viewingDate: true,
+      viewingTime: true, // ← NEW
       preferredContact: true,
     });
     return Object.keys(e).length === 0;
@@ -1674,7 +1681,22 @@ function LeadFormStep({
               min={minDate}
               max={maxDateStr}
               value={form.viewingDate}
-              onChange={(e) => update("viewingDate", e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                update("viewingDate", val);
+                // Clearing the date should clear any previously-picked time too
+                if (!val) update("viewingTime", "");
+                if (touched.viewingTime) {
+                  const err = VALIDATORS.viewingTime(form.viewingTime, {
+                    ...form,
+                    viewingDate: val,
+                  });
+                  setErrors((prev) => ({
+                    ...prev,
+                    viewingTime: err ?? undefined,
+                  }));
+                }
+              }}
               onBlur={() => touch("viewingDate")}
             />
             {!errors.viewingDate && (
@@ -1683,6 +1705,58 @@ function LeadFormStep({
               </p>
             )}
           </FieldWrapper>
+
+          {form.viewingDate && (
+            <FieldWrapper error={errors.viewingTime}>
+              <label style={s.label}>
+                <Clock
+                  size={13}
+                  style={{
+                    display: "inline",
+                    marginRight: 5,
+                    verticalAlign: "middle",
+                  }}
+                />
+                Preferred Time <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              <div
+                style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}
+              >
+                {TIME_SLOTS.map((t) => {
+                  const sel = form.viewingTime === t.value;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => {
+                        update("viewingTime", t.value);
+                        setTouched((prev) => ({ ...prev, viewingTime: true }));
+                        setErrors((prev) => ({
+                          ...prev,
+                          viewingTime: undefined,
+                        }));
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 10,
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: sel ? 700 : 500,
+                        border: sel
+                          ? "2px solid #c0392b"
+                          : "1.5px solid #e5e7eb",
+                        background: sel ? "#fff5f5" : "#fafafa",
+                        color: sel ? "#c0392b" : "#374151",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </FieldWrapper>
+          )}
 
           <FieldWrapper error={errors.message}>
             <div
