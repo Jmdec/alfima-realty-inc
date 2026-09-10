@@ -1,10 +1,9 @@
-// app/api/admin/services/route.ts
+// app/api/services/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// Safe JSON parse — falls back to text if response isn't JSON
 async function safeJson(res: Response) {
   const text = await res.text();
   try {
@@ -16,49 +15,31 @@ async function safeJson(res: Response) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization");
     const { searchParams } = new URL(request.url);
     const params = new URLSearchParams();
     if (searchParams.get("all")) params.set("all", "1");
 
-    const res = await fetch(`${API_URL}/api/admin/services?${params}`, {
-      headers: {
-        Accept: "application/json",
-        ...(token ? { Authorization: token } : {}),
-      },
+    const url = `${API_URL}/api/services?${params}`;
+    console.log("[services] API_URL env:", API_URL);
+    console.log("[services] calling:", url);
+
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
       cache: "no-store",
     });
 
+    console.log("[services] upstream status:", res.status);
     const data = await safeJson(res);
+    console.log(
+      "[services] upstream body (first 300 chars):",
+      JSON.stringify(data).slice(0, 300),
+    );
+
     return NextResponse.json(data, { status: res.status });
   } catch (e) {
+    console.error("[services] fetch threw:", e);
     return NextResponse.json(
       { error: "Failed to fetch services." },
-      { status: 500 },
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const token = request.headers.get("authorization");
-    const formData = await request.formData();
-
-    const res = await fetch(`${API_URL}/api/admin/services`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        ...(token ? { Authorization: token } : {}),
-        // ✅ Do NOT set Content-Type — fetch sets it with the correct boundary
-      },
-      body: formData,
-    });
-
-    const data = await safeJson(res);
-    return NextResponse.json(data, { status: res.status });
-  } catch (e) {
-    return NextResponse.json(
-      { error: "Failed to create service." },
       { status: 500 },
     );
   }
