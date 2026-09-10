@@ -784,6 +784,49 @@ export default function ContactPage() {
                           />
                         </div>
 
+                        <div className="space-y-4 rounded-2xl border border-red-400/30 bg-black/10 p-4">
+                          <div className="flex items-start gap-3">
+                            <input
+                              id="privacy-consent"
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 accent-red-600"
+                              required
+                            />
+                            <label
+                              htmlFor="privacy-consent"
+                              className="text-sm leading-relaxed text-white/80"
+                            >
+                              I acknowledge that I have read and understood the
+                              Privacy Notice and Privacy Policy of ALFIMA Realty
+                              Inc.
+                            </label>
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold text-white/90">
+                              Marketing Consent &#40;Optional&#41;
+                            </p>
+                            <div className="flex items-start gap-3">
+                              <input
+                                id="marketing-consent"
+                                type="checkbox"
+                                defaultChecked={false}
+                                className="mt-0.5 h-4 w-4 accent-red-600"
+                              />
+                              <label
+                                htmlFor="marketing-consent"
+                                className="text-sm leading-relaxed text-white/80"
+                              >
+                                I agree to receive promotional communications and
+                                property updates from ALFIMA Realty Inc. through
+                                the information I provided. I understand that this
+                                is optional and that I may withdraw my consent at
+                                any time.
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
                         <button
                           type="submit"
                           disabled={status === "loading"}

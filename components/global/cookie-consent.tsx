@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function CookieConsent() {
-  const pathname   = usePathname();
+  const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -22,7 +21,14 @@ export function CookieConsent() {
     setIsVisible(false);
   };
 
-  const handleDismiss = () => setIsVisible(false);
+  const handleReject = () => {
+    localStorage.setItem('cookieConsent', 'rejected');
+    setIsVisible(false);
+  };
+
+  const handleManagePreferences = () => {
+    window.location.assign('/cookies');
+  };
 
   if (!isVisible) return null;
 
@@ -31,16 +37,22 @@ export function CookieConsent() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex-1">
-            <p className="text-white font-semibold mb-2">Cookie Policy</p>
+            <p className="text-white font-semibold mb-2">We Value Your Privacy</p>
             <p className="text-green-100 text-sm leading-relaxed">
-              We use cookies to help our website operate securely and reliably, improve system efficiency, and support marketing activities. For further information, please refer to our{' '}
-              <a href="/cookies" className="text-lime-300 hover:text-lime-400 underline font-medium">Cookie Policy</a>
+              ALFIMA Realty Inc. uses cookies and similar technologies to operate
+              the website, understand website usage, and support analytics and
+              advertising. Please review the Privacy Policy of ALFIMA Realty
+              Inc. for more information.
             </p>
           </div>
           <div className="flex gap-3 flex-shrink-0">
-            <Button onClick={handleDismiss} variant="ghost"
+            <Button onClick={handleReject} variant="ghost"
               className="text-green-100 hover:text-white hover:bg-white/10 border border-white/20">
-              Decline
+              Reject Non-Essential
+            </Button>
+            <Button onClick={handleManagePreferences} variant="ghost"
+              className="text-green-100 hover:text-white hover:bg-white/10 border border-white/20">
+              Manage Preferences
             </Button>
             <Button onClick={handleAccept}
               className="bg-gradient-to-r from-lime-400 to-green-500 hover:from-lime-500 hover:to-green-600 text-green-950 font-bold">

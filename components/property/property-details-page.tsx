@@ -1909,6 +1909,8 @@ function ScheduleTourModal({
     time: "",
     preferredContact: "sms",
   });
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const [errors, setErrors] = useState<
     Partial<Record<"name" | "phone" | "email", string>>
@@ -1972,6 +1974,7 @@ function ScheduleTourModal({
 
   const handleSubmit = async () => {
     if (!validateDetails()) return;
+    if (!privacyAcknowledged) return;
     setStep("submitting");
     setSubmitError(null);
     try {
@@ -2747,6 +2750,84 @@ function ScheduleTourModal({
               <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6 }}>
                 🔒 Your details are only used to confirm this tour booking.
               </p>
+
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 14,
+                  border: "1.5px solid #fde8e8",
+                  borderRadius: 12,
+                  background: "#fff8f8",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "#6b7280",
+                    lineHeight: 1.6,
+                    margin: "0 0 12px",
+                  }}
+                >
+                  ALFIMA Realty Inc. will use the information you provide to
+                  process your request, communicate with you regarding the
+                  property, arrange your requested viewing or consultation,
+                  and provide related property assistance. Please see the
+                  Privacy Policy of ALFIMA Realty Inc. for more information.
+                </p>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    cursor: "pointer",
+                    marginBottom: 14,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={privacyAcknowledged}
+                    onChange={(e) => setPrivacyAcknowledged(e.target.checked)}
+                    style={{ marginTop: 3, accentColor: "#c0392b" }}
+                  />
+                  <span style={{ fontSize: 12, color: "#374151", lineHeight: 1.5 }}>
+                    I acknowledge that I have read and understood the Privacy
+                    Notice and Privacy Policy of ALFIMA Realty Inc.
+                  </span>
+                </label>
+
+                <p
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#374151",
+                    margin: "0 0 8px",
+                  }}
+                >
+                  Marketing Consent &#40;Optional&#41;
+                </p>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={marketingConsent}
+                    onChange={(e) => setMarketingConsent(e.target.checked)}
+                    style={{ marginTop: 3, accentColor: "#c0392b" }}
+                  />
+                  <span style={{ fontSize: 12, color: "#374151", lineHeight: 1.5 }}>
+                    I agree to receive promotional communications and property
+                    updates from ALFIMA Realty Inc. through the information I
+                    provided. I understand that this is optional and that I may
+                    withdraw my consent at any time.
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div
@@ -2765,10 +2846,13 @@ function ScheduleTourModal({
               >
                 ← Back
               </button>
+
+
+              
               <button
-                style={s.primaryBtn(step === "submitting")}
+                style={s.primaryBtn(step === "submitting" || !privacyAcknowledged)}
                 onClick={handleSubmit}
-                disabled={step === "submitting"}
+                disabled={step === "submitting" || !privacyAcknowledged}
               >
                 {step === "submitting" ? (
                   <>
