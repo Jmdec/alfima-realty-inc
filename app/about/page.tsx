@@ -431,36 +431,40 @@ export default function AboutPage() {
             <Reveal dir="left">
               <div className="relative">
                 <div
-                  className="rounded-3xl p-10 border-2 border-red-400/40 hover:border-red-400/60 transition-all duration-500 shadow-lg hover:shadow-xl"
+                  className="w-full rounded-3xl p-5 sm:p-6 md:p-8 lg:p-10 border-2 border-red-400/40 hover:border-red-400/60 transition-all duration-500 shadow-lg hover:shadow-xl"
                   style={{
                     background: "rgba(61,24,24,0.5)",
                     backdropFilter: "blur(12px)",
                   }}
                 >
+                  {/* Accent line */}
                   <div
-                    className="h-1 w-20 rounded-full mb-8"
+                    className="h-1 w-16 sm:w-20 rounded-full mb-6"
                     style={{
                       background: "linear-gradient(90deg,#e74c3c,#ff8080)",
                     }}
                   />
-                  <div className="w-28 h-28 rounded-full overflow-hidden mb-6 shadow-xl ring-2 ring-red-400/60 hover:scale-110 transition-transform duration-300 bg-white flex items-center justify-center p-2">
+
+                  {/* Image */}
+                  <div className="w-full max-w-[500px] h-[270px] md:h-[300px] mx-auto overflow-hidden flex items-center justify-center">
                     <img
-                      src="/alfima.png"
+                      src="/photo_2026-09-11_15-00-23.png"
                       alt="Alfima"
                       className="w-full h-full object-contain"
                     />
                   </div>
-                  <p className="text-white text-xs font-black tracking-[0.2em] uppercase mb-2">
-                    Who We Are
-                  </p>
-                  <h3 className="text-2xl font-black text-white mb-4">
-                    Alfima Realty Inc.
-                  </h3>
-                  <p className="text-white/70 leading-relaxed mb-6">
-                    Welcome to ALFIMA Realty Inc. a real estate brokerage founded in 
-                    2025 by <strong>Engr. Albert Belino Macalincag</strong>, a 
-                    licensed Real Estate Broker.
-                  </p>
+
+                  {/* Description */}
+                  <div className="text-base sm:text-lg text-white mb-5 leading-relaxed">
+                    Welcome to ALFIMA Realty Inc. a real estate brokerage founded in
+                    2025 by{" "}
+                    <span className="font-bold italic">
+                      Engr. Albert Belino Macalincag
+                    </span>
+                    , a licensed Real Estate Broker.
+                  </div>
+
+                  {/* Badges */}
                   <div className="flex flex-wrap gap-2">
                     {[
                       "PRC Licensed",
@@ -469,7 +473,7 @@ export default function AboutPage() {
                     ].map((t) => (
                       <span
                         key={t}
-                        className="px-3 py-1.5 rounded-full text-xs font-bold border"
+                        className="px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold border"
                         style={{
                           background: "rgba(231,76,60,0.3)",
                           color: "#ffffff",
@@ -549,7 +553,7 @@ export default function AboutPage() {
                 <div className="h-px w-10 bg-red-400/60" />
               </div>
               <h2 className="text-4xl font-black text-white">
-                Vision, Mission, Goals &amp; Objectives
+                Vision &amp; Mission
               </h2>
             </div>
           </Reveal>
@@ -611,7 +615,7 @@ export default function AboutPage() {
                   >
                     {label}
                   </p>
-                  <p className="text-white/85 text-sm leading-relaxed">
+                  <p className="text-white/85 text-md leading-relaxed">
                     {pg?.[key] || fallback}
                   </p>
                 </div>
@@ -713,7 +717,7 @@ export default function AboutPage() {
                   <h3 className="text-white font-black text-lg mb-3">
                     {v.title}
                   </h3>
-                  <p className="text-white/85 text-sm leading-relaxed">
+                  <p className="text-white/85 text-md leading-relaxed">
                     {v.description}
                   </p>
                 </div>
@@ -811,7 +815,7 @@ export default function AboutPage() {
                   <h3 className="text-white font-black text-lg mb-3">
                     {w.title}
                   </h3>
-                  <p className="text-white/85 text-sm leading-relaxed mb-6 flex-grow">
+                  <p className="text-white/85 text-md leading-relaxed mb-6 flex-grow">
                     {w.description}
                   </p>
                   <div
@@ -830,7 +834,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <OurPartners/>
+      <OurPartners />
 
       {/* ══ CTA ══ */}
       <section className="relative py-24 sm:py-38 bg-white">
