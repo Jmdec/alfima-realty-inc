@@ -20,6 +20,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { OurPartners } from "@/components/OurPartners";
 
 const IMAGE_BASE = process.env.NEXT_PUBLIC_IMAGE_URL ?? "";
 
@@ -449,15 +450,16 @@ export default function AboutPage() {
                       className="w-full h-full object-contain"
                     />
                   </div>
-                 <p className="text-white text-xs font-black tracking-[0.2em] uppercase mb-2">
-  Who We Are
-</p>
-<h3 className="text-2xl font-black text-white mb-4">
-  Alfima Realty Inc.
-</h3>
+                  <p className="text-white text-xs font-black tracking-[0.2em] uppercase mb-2">
+                    Who We Are
+                  </p>
+                  <h3 className="text-2xl font-black text-white mb-4">
+                    Alfima Realty Inc.
+                  </h3>
                   <p className="text-white/70 leading-relaxed mb-6">
-                    An accredited real estate brokerage company serving clients
-                    across the Philippines.
+                    Welcome to ALFIMA Realty Inc. a real estate brokerage founded in 
+                    2025 by <strong>Engr. Albert Belino Macalincag</strong>, a 
+                    licensed Real Estate Broker.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -469,10 +471,10 @@ export default function AboutPage() {
                         key={t}
                         className="px-3 py-1.5 rounded-full text-xs font-bold border"
                         style={{
-  background: "rgba(231,76,60,0.3)",
-  color: "#ffffff",
-  borderColor: "rgba(231,76,60,0.5)",
-}}
+                          background: "rgba(231,76,60,0.3)",
+                          color: "#ffffff",
+                          borderColor: "rgba(231,76,60,0.5)",
+                        }}
                       >
                         {t}
                       </span>
@@ -493,9 +495,9 @@ export default function AboutPage() {
               <div>
                 <div className="inline-flex items-center gap-2 mb-5">
                   <div className="h-px w-8 bg-red-500" />
-            <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
-  Who We Are
-</span>
+                  <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
+                    Who We Are
+                  </span>
                 </div>
                 <h2 className="text-4xl font-black text-white mb-6 leading-tight">
                   {pg?.who_we_are_heading ||
@@ -516,13 +518,15 @@ export default function AboutPage() {
                           milestone, and a legacy.
                         </p>
                         <p>
-                          Our licensed brokers bring deep local knowledge to
-                          guide you through every step — buying, selling, or
-                          leasing.
+                          We provide trusted expertise in buying, selling, leasing,
+                          and property documentation, with a commitment to exceptional
+                          service at every step.
                         </p>
                         <p>
-                          First-time buyer, seasoned investor, or business owner
-                          — Alfima has the network to get it done right.
+                          More than a brokerage, ALFIMA is a neighbor, partner, and
+                          community advocate, helping individuals and families find
+                          the right property while building lasting connections within
+                          the communities we serve.
                         </p>
                       </>
                     )}
@@ -539,9 +543,9 @@ export default function AboutPage() {
             <div className="text-center mb-14">
               <div className="inline-flex items-center gap-3 mb-4 justify-center">
                 <div className="h-px w-10 bg-red-400/60" />
-             <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
-  Our Direction
-</span>
+                <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
+                  Our Direction
+                </span>
                 <div className="h-px w-10 bg-red-400/60" />
               </div>
               <h2 className="text-4xl font-black text-white">
@@ -558,7 +562,7 @@ export default function AboutPage() {
                   Icon: Eye,
                   label: "Vision",
                   fallback:
-                    "To be the most trusted real estate partner in the Philippines.",
+                    "We envision a community where everyone has access to the resources they need to find a place to call home. Our goal is to empower clients through education, guidance and unwavering support throughout their real estate journey.",
                   accent: "#ff8080",
                 },
                 {
@@ -566,25 +570,25 @@ export default function AboutPage() {
                   Icon: Target,
                   label: "Mission",
                   fallback:
-                    "To provide every Filipino with seamless, transparent real estate services.",
+                    "We believe that every client deserves personalized attention and tailored solutions that reflect their unique needs and aspirations. Our goal is to simplify the process and ensure a smooth experience from start to finish.",
                   accent: "#e87070",
                 },
-                {
-                  key: "goals" as const,
-                  Icon: Flag,
-                  label: "Goals",
-                  fallback:
-                    "Expand to 50+ cities while maintaining 5-star client satisfaction.",
-                  accent: "#d46060",
-                },
-                {
-                  key: "objectives" as const,
-                  Icon: Compass,
-                  label: "Objectives",
-                  fallback:
-                    "Verify every listing and deliver end-to-end support for every transaction.",
-                  accent: "#c05050",
-                },
+                // {
+                //   key: "goals" as const,
+                //   Icon: Flag,
+                //   label: "Goals",
+                //   fallback:
+                //     "Expand to 50+ cities while maintaining 5-star client satisfaction.",
+                //   accent: "#d46060",
+                // },
+                // {
+                //   key: "objectives" as const,
+                //   Icon: Compass,
+                //   label: "Objectives",
+                //   fallback:
+                //     "Verify every listing and deliver end-to-end support for every transaction.",
+                //   accent: "#c05050",
+                // },
               ] as const
             ).map(({ key, Icon, label, fallback, accent }, i) => (
               <Reveal key={key} delay={i * 120}>
@@ -642,11 +646,11 @@ export default function AboutPage() {
           <Reveal>
             <div className="text-center mb-14">
               <div className="inline-flex items-center gap-3 mb-4 justify-center">
-                <div className="h-px w-10 bg-white/60" />
+                <div className="h-px w-10 bg-red-400/60" />
                 <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
                   What Drives Us
                 </span>
-                <div className="h-px w-10 bg-white/60" />
+                <div className="h-px w-10 bg-red-400/60" />
               </div>
               <h2 className="text-4xl font-black text-white drop-shadow-lg">
                 Our Core Values
@@ -656,44 +660,44 @@ export default function AboutPage() {
 
           {/* Dynamic values — fallback to static if empty */}
           <div
-            className={`grid grid-cols-1 sm:grid-cols-2 gap-6 ${values.length >= 3 ? "lg:grid-cols-4" : values.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}
+            className={`grid grid-cols-1 sm:grid-cols-2 gap-6 ${values.length >= 3 ? "lg:grid-cols-4" : values.length === 2 ? "lg:grid-cols-4" : "lg:grid-cols-4"}`}
           >
             {(values.length > 0
               ? values
               : [
-                  {
-                    id: 0,
-                    icon: "Shield",
-                    title: "Integrity",
-                    description:
-                      "Full transparency and honesty in every deal we make.",
-                    sort_order: 0,
-                  },
-                  {
-                    id: 1,
-                    icon: "Star",
-                    title: "Excellence",
-                    description:
-                      "Highest professional standards in service and expertise.",
-                    sort_order: 1,
-                  },
-                  {
-                    id: 2,
-                    icon: "Users",
-                    title: "Client-First",
-                    description:
-                      "Your goals are our goals. We listen, then deliver.",
-                    sort_order: 2,
-                  },
-                  {
-                    id: 3,
-                    icon: "TrendingUp",
-                    title: "Growth",
-                    description:
-                      "Continuously improving to get you the best outcomes.",
-                    sort_order: 3,
-                  },
-                ]
+                {
+                  id: 0,
+                  icon: "Shield",
+                  title: "Integrity",
+                  description:
+                    "Full transparency and honesty in every deal we make.",
+                  sort_order: 0,
+                },
+                {
+                  id: 1,
+                  icon: "Star",
+                  title: "Excellence",
+                  description:
+                    "Highest professional standards in service and expertise.",
+                  sort_order: 1,
+                },
+                {
+                  id: 2,
+                  icon: "Users",
+                  title: "Client-First",
+                  description:
+                    "Your goals are our goals. We listen, then deliver.",
+                  sort_order: 2,
+                },
+                {
+                  id: 3,
+                  icon: "TrendingUp",
+                  title: "Growth",
+                  description:
+                    "Continuously improving to get you the best outcomes.",
+                  sort_order: 3,
+                },
+              ]
             ).map((v, i) => (
               <Reveal key={v.id} delay={i * 120}>
                 <div
@@ -737,9 +741,9 @@ export default function AboutPage() {
             <div className="text-center mb-14">
               <div className="inline-flex items-center gap-3 mb-4 justify-center">
                 <div className="h-px w-10 bg-red-500" />
-               <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
-  Why Alfima
-</span>
+                <span className="text-white text-xs font-black tracking-[0.2em] uppercase">
+                  Why Alfima
+                </span>
                 <div className="h-px w-10 bg-red-500" />
               </div>
               <h2 className="text-4xl font-black text-white">Why Choose Us</h2>
@@ -751,37 +755,37 @@ export default function AboutPage() {
             {(why.length > 0
               ? why
               : [
-                  {
-                    id: 0,
-                    number: "01",
-                    title: "Local Expertise",
-                    description:
-                      "Deep knowledge of Philippine real estate markets, from Metro Manila to provincial hotspots.",
-                    icon: "MapPin",
-                    accent_color: "#c0392b",
-                    sort_order: 0,
-                  },
-                  {
-                    id: 1,
-                    number: "02",
-                    title: "Verified Listings",
-                    description:
-                      "Every property is verified by our team to ensure accuracy, legality, and fair pricing.",
-                    icon: "CheckCircle",
-                    accent_color: "#e74c3c",
-                    sort_order: 1,
-                  },
-                  {
-                    id: 2,
-                    number: "03",
-                    title: "End-to-End Support",
-                    description:
-                      "From property search to title transfer, we guide you through every step of the process.",
-                    icon: "Home",
-                    accent_color: "#a93226",
-                    sort_order: 2,
-                  },
-                ]
+                {
+                  id: 0,
+                  number: "01",
+                  title: "Local Expertise",
+                  description:
+                    "Deep knowledge of Philippine real estate markets, from Metro Manila to provincial hotspots.",
+                  icon: "MapPin",
+                  accent_color: "#c0392b",
+                  sort_order: 0,
+                },
+                {
+                  id: 1,
+                  number: "02",
+                  title: "Verified Listings",
+                  description:
+                    "Every property is verified by our team to ensure accuracy, legality, and fair pricing.",
+                  icon: "CheckCircle",
+                  accent_color: "#e74c3c",
+                  sort_order: 1,
+                },
+                {
+                  id: 2,
+                  number: "03",
+                  title: "End-to-End Support",
+                  description:
+                    "From property search to title transfer, we guide you through every step of the process.",
+                  icon: "Home",
+                  accent_color: "#a93226",
+                  sort_order: 2,
+                },
+              ]
             ).map((w, i) => (
               <Reveal
                 key={w.id}
@@ -825,6 +829,8 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      <OurPartners/>
 
       {/* ══ CTA ══ */}
       <section className="relative py-24 sm:py-38 bg-white">

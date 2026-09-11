@@ -84,11 +84,156 @@ const PROPERTY_LINKS = [
 ];
 
 // slugs must match toSlug(label) = label.toLowerCase().replace(/\s+/g, "-")
+// const SERVICE_LINKS = [
+//   {
+//     label: "Leasing",
+//     slug: "leasing",
+//     sub: "Short & long-term lease solutions",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#4b5563"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <path d="M4 4h12v12H4z" />
+//         <path d="M8 8h4M8 11h4M8 14h2" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-100 border border-gray-200",
+//   },
+//   {
+//     label: "Legal Transfer",
+//     slug: "legal-transfer",
+//     sub: "Secure title & ownership transfers",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#6b7280"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <path d="M10 2L3 7v11h14V7L10 2z" />
+//         <path d="M7 18v-6h6v6" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-50 border border-gray-200",
+//   },
+//   {
+//     label: "Property Management",
+//     slug: "property-management",
+//     sub: "Your property, expertly managed",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#4b5563"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <circle cx="10" cy="10" r="8" />
+//         <path d="M10 6v4l3 2" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-100 border border-gray-200",
+//   },
+//   {
+//     label: "Investment Services",
+//     slug: "investment-services",
+//     sub: "Build wealth through real estate",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#6b7280"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <path d="M2 14l4-4 3 3 5-6 4 4" />
+//         <path d="M2 18h16" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-50 border border-gray-200",
+//   },
+//   {
+//     label: "Housing Loan Application",
+//     slug: "housing-loan-application",
+//     sub: "Finance your dream home",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#4b5563"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <rect x="2" y="6" width="16" height="11" rx="1.5" />
+//         <path d="M6 6V5a4 4 0 018 0v1" />
+//         <path d="M10 12v2M8 12h4" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-100 border border-gray-200",
+//   },
+//   {
+//     label: "Designs",
+//     slug: "designs",
+//     sub: "Spaces that tell your story",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#6b7280"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <path d="M4 16l3-3 9-9-3-3L4 10v6z" />
+//         <path d="M13 3l3 3" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-50 border border-gray-200",
+//   },
+//   {
+//     label: "Construction",
+//     slug: "construction",
+//     sub: "Built right. Built to last.",
+//     icon: (
+//       <svg
+//         viewBox="0 0 20 20"
+//         fill="none"
+//         stroke="#4b5563"
+//         strokeWidth="1.8"
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//         className="w-4 h-4"
+//       >
+//         <path d="M2 18h16" />
+//         <path d="M4 18V9l6-6 6 6v9" />
+//         <path d="M8 18v-5h4v5" />
+//       </svg>
+//     ),
+//     iconBg: "bg-gray-100 border border-gray-200",
+//   },
+// ];
+
 const SERVICE_LINKS = [
   {
-    label: "Leasing",
-    slug: "leasing",
-    sub: "Short & long-term lease solutions",
+    label: "Real Estate Selling",
+    slug: "real-estate-selling",
+    sub: "Pre-Selling\nForeclosure\nFixed-Upper\nPre-Owned Property",
     icon: (
       <svg
         viewBox="0 0 20 20"
@@ -106,9 +251,9 @@ const SERVICE_LINKS = [
     iconBg: "bg-gray-100 border border-gray-200",
   },
   {
-    label: "Legal Transfer",
-    slug: "legal-transfer",
-    sub: "Secure title & ownership transfers",
+    label: "Management",
+    slug: "management",
+    sub: "Resident\nCommercial\nWarehouse",
     icon: (
       <svg
         viewBox="0 0 20 20"
@@ -126,70 +271,9 @@ const SERVICE_LINKS = [
     iconBg: "bg-gray-50 border border-gray-200",
   },
   {
-    label: "Property Management",
-    slug: "property-management",
-    sub: "Your property, expertly managed",
-    icon: (
-      <svg
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="#4b5563"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-4 h-4"
-      >
-        <circle cx="10" cy="10" r="8" />
-        <path d="M10 6v4l3 2" />
-      </svg>
-    ),
-    iconBg: "bg-gray-100 border border-gray-200",
-  },
-  {
-    label: "Investment Services",
-    slug: "investment-services",
-    sub: "Build wealth through real estate",
-    icon: (
-      <svg
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="#6b7280"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-4 h-4"
-      >
-        <path d="M2 14l4-4 3 3 5-6 4 4" />
-        <path d="M2 18h16" />
-      </svg>
-    ),
-    iconBg: "bg-gray-50 border border-gray-200",
-  },
-  {
-    label: "Housing Loan Application",
-    slug: "housing-loan-application",
-    sub: "Finance your dream home",
-    icon: (
-      <svg
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="#4b5563"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-4 h-4"
-      >
-        <rect x="2" y="6" width="16" height="11" rx="1.5" />
-        <path d="M6 6V5a4 4 0 018 0v1" />
-        <path d="M10 12v2M8 12h4" />
-      </svg>
-    ),
-    iconBg: "bg-gray-100 border border-gray-200",
-  },
-  {
-    label: "Designs",
-    slug: "designs",
-    sub: "Spaces that tell your story",
+    label: "Conveyancing",
+    slug: "conveyancing",
+    sub: "Conveyancing\nTransfer of Title\nSettlement Service\nHomeloan Assistance\nProperty Disposition",
     icon: (
       <svg
         viewBox="0 0 20 20"
@@ -204,12 +288,12 @@ const SERVICE_LINKS = [
         <path d="M13 3l3 3" />
       </svg>
     ),
-    iconBg: "bg-gray-50 border border-gray-200",
+    iconBg: "bg-gray-100 border border-gray-200",
   },
   {
-    label: "Construction",
-    slug: "construction",
-    sub: "Built right. Built to last.",
+    label: "Leasing",
+    slug: "leasing",
+    sub: "Resident\nOffices\nCommercial\nWarehouse\nArgicultural Lot",
     icon: (
       <svg
         viewBox="0 0 20 20"
@@ -227,7 +311,7 @@ const SERVICE_LINKS = [
     ),
     iconBg: "bg-gray-100 border border-gray-200",
   },
-];
+]
 
 export function Navbar() {
   const router = useRouter();
@@ -405,11 +489,10 @@ export function Navbar() {
       className={`fixed top-0 w-full z-50 overflow-visible
     transition-transform duration-300 ease-in-out
     ${navbarVisible ? "translate-y-0" : "-translate-y-full"}
-    ${
-      scrolled
-        ? "shadow-lg shadow-black/10 border-b border-gray-300"
-        : "backdrop-blur-md border-b border-gray-300/80"
-    }
+    ${scrolled
+          ? "shadow-lg shadow-black/10 border-b border-gray-300"
+          : "backdrop-blur-md border-b border-gray-300/80"
+        }
   `}
     >
       <div className="max-w-full mx-auto py-2 md:py-3 px-4 sm:px-6 lg:px-16 overflow-visible">
@@ -440,18 +523,16 @@ export function Navbar() {
             {/* Properties hover dropdown */}
             <div className="relative group">
               <button
-                className={`flex items-center gap-1 text-md font-semibold transition-colors relative ${
-                  isPropertiesActive
-                    ? "text-gray-900"
-                    : "text-gray-700 hover:text-gray-900"
-                }`}
+                className={`flex items-center gap-1 text-md font-semibold transition-colors relative ${isPropertiesActive
+                  ? "text-gray-900"
+                  : "text-gray-700 hover:text-gray-900"
+                  }`}
               >
                 Properties
                 <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" />
                 <span
-                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${
-                    isPropertiesActive ? "w-full" : "w-0 group-hover:w-full"
-                  }`}
+                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${isPropertiesActive ? "w-full" : "w-0 group-hover:w-full"
+                    }`}
                 />
               </button>
               <div className="absolute top-full left-0 w-full h-3" />
@@ -479,7 +560,9 @@ export function Navbar() {
                         <span className="text-sm font-bold text-gray-900">
                           {label}
                         </span>
-                        <span className="text-xs text-gray-400">{sub}</span>
+                        <span className="text-xs text-gray-400 whitespace-pre-line leading-5">
+                          {sub}
+                        </span>
                       </div>
                     </Link>
                   ))}
@@ -501,57 +584,79 @@ export function Navbar() {
             {/* Services hover dropdown */}
             <div className="relative group">
               <button
-                className={`flex items-center gap-1 text-md font-semibold transition-colors relative ${
-                  isServicesActive
-                    ? "text-gray-900"
-                    : "text-gray-700 hover:text-gray-900"
-                }`}
+                className={`flex items-center gap-1 text-md font-semibold transition-colors relative ${isServicesActive
+                  ? "text-gray-900"
+                  : "text-gray-700 hover:text-gray-900"
+                  }`}
               >
                 Services
+
                 <ChevronDown className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" />
+
                 <span
-                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${
-                    isServicesActive ? "w-full" : "w-0 group-hover:w-full"
-                  }`}
+                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${isServicesActive
+                    ? "w-full"
+                    : "w-0 group-hover:w-full"
+                    }`}
                 />
               </button>
+
               <div className="absolute top-full left-0 w-full h-3" />
+
               <div
-                className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+12px)] w-80
-                bg-white border border-gray-200 rounded-2xl shadow-2xl shadow-black/10 py-2 overflow-hidden
-                opacity-0 invisible -translate-y-1.5
-                group-hover:opacity-100 group-hover:visible group-hover:translate-y-0
-                transition-all duration-200 ease-out pointer-events-none group-hover:pointer-events-auto"
+                className="
+                  absolute left-1/2 -translate-x-1/2 top-[calc(100%+12px)] w-[800px] bg-white border border-gray-200
+                  rounded-2xl shadow-2xl shadow-black/10 py-2 overflow-hidden opacity-0 invisible -translate-y-1.5
+                  group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 ease-out
+                  pointer-events-none group-hover:pointer-events-auto"
               >
-                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-gray-200 rotate-45" />
-                <div className="px-2">
-                  {/* ✅ Use button + handleServiceClick instead of <Link href> */}
-                  {SERVICE_LINKS.map(({ label, slug, sub, icon, iconBg }) => (
-                    <button
-                      key={slug}
-                      onClick={() => handleServiceClick(slug)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors text-left"
-                    >
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg}`}
+                {/* Dropdown arrow */}
+                <div
+                  className="
+                    absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-gray-200 rotate-45"
+                />
+
+                {/* Services grid */}
+                <div className="px-3 py-2 flex gap-2">
+                  {SERVICE_LINKS.map(
+                    ({ label, slug, sub, icon, iconBg }) => (
+                      <button
+                        key={slug}
+                        onClick={() => handleServiceClick(slug)}
+                        className="
+                          w-full flex items-start gap-3 px-3 py-3 rounded-xl
+                          hover:bg-gray-100 transition-colors text-left"
                       >
-                        {icon}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-900">
-                          {label}
-                        </span>
-                        <span className="text-xs text-gray-400">{sub}</span>
-                      </div>
-                    </button>
-                  ))}
+                        {/* Icon */}
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg}`} >
+                          {icon}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-bold text-gray-900">
+                            {label}
+                          </span>
+
+                          <ul className="mt-1 text-xs text-gray-400 leading-4 list-disc pl-4">
+                            {sub.split(/\r?\n/).map((line, index) => (
+                              <li key={index}>{line}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </button>
+                    )
+                  )}
                 </div>
+
+                {/* Divider */}
                 <div className="mx-3 my-1 border-t border-gray-100" />
+
+                {/* View all */}
                 <div className="px-2">
                   <Link
                     href="/services"
-                    className="flex items-center justify-center px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
-                  >
+                    className="flex items-center justify-center px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors">
                     <span className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
                       View all services →
                     </span>
@@ -565,17 +670,15 @@ export function Navbar() {
               <Link
                 key={href}
                 href={href}
-                className={`text-md font-semibold transition-colors relative group ${
-                  pathname === href
-                    ? "text-gray-900"
-                    : "text-gray-700 hover:text-gray-900"
-                }`}
+                className={`text-md font-semibold transition-colors relative group ${pathname === href
+                  ? "text-gray-900"
+                  : "text-gray-700 hover:text-gray-900"
+                  }`}
               >
                 {label}
                 <span
-                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${
-                    pathname === href ? "w-full" : "w-0 group-hover:w-full"
-                  }`}
+                  className={`absolute -bottom-1 left-0 h-0.5 bg-gray-600 rounded-full transition-all duration-300 ${pathname === href ? "w-full" : "w-0 group-hover:w-full"
+                    }`}
                 />
               </Link>
             ))}
@@ -766,11 +869,10 @@ export function Navbar() {
                 key={href}
                 href={href}
                 onClick={() => setIsOpen(false)}
-                className={`block px-4 py-2.5 rounded-xl transition font-medium ${
-                  pathname === href
-                    ? "text-gray-900 bg-gray-100"
-                    : "text-gray-800 hover:text-gray-900 hover:bg-gray-50"
-                }`}
+                className={`block px-4 py-2.5 rounded-xl transition font-medium ${pathname === href
+                  ? "text-gray-900 bg-gray-100"
+                  : "text-gray-800 hover:text-gray-900 hover:bg-gray-50"
+                  }`}
               >
                 {label}
               </Link>
