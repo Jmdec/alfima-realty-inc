@@ -370,8 +370,8 @@ const ACCEPT_ALL_IMAGES =
   "image/*,.avif,.heic,.heif,.jxl,.tiff,.tif,.bmp,.ico,.svg,.webp";
 
 // File size limits
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB per image
-const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200 MB per video (direct to Laravel)
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50 MB per image
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB per video (direct to Laravel)
 const MAX_IMAGES_PER_BATCH = 5; // images per multipart batch
 
 // ─── Unit Offering Photos: one upload slot per field, grouped by property type
@@ -2119,7 +2119,7 @@ function PropertyFormModal({
                   <label className={lbl}>
                     Thumbnail{" "}
                     <span className="text-slate-400 font-normal normal-case">
-                      (&lt; 10 MB)
+                      (&lt; 50 MB)
                     </span>
                   </label>
                   <div
