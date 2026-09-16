@@ -1859,7 +1859,6 @@ function PropertyFormModal({
         });
 
         const syncFd = new FormData();
-        syncFd.append("_method", "PUT");
         keepImages.forEach((p) => syncFd.append("keep_images[]", p));
         keepVideos.forEach((p) => syncFd.append("keep_videos[]", p));
 
