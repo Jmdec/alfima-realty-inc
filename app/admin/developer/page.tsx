@@ -2226,7 +2226,7 @@ function PropertyFormModal({
                   <label className={lbl}>
                     Thumbnail{" "}
                     <span className="text-slate-400 font-normal normal-case">
-                      (&lt; 50 MB)
+                      (&lt; 20 MB)
                     </span>
                   </label>
                   <div
