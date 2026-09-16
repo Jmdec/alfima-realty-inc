@@ -409,7 +409,7 @@ const ACCEPT_ALL_IMAGES =
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 20 MB per image
 const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 per video (direct to Laravel)
 const MAX_IMAGES_PER_BATCH = 15; // images per multipart batch
-
+const MAX_GALLERY_IMAGES = 15;
 // ─── Unit Offering Photos: one upload slot per field, grouped by property type
 // Mirrors AdminPropertiesPage's UNIT_PHOTO_CATEGORIES (Bedrooms / Bathrooms /
 // Area Min / Area Max), but the "fields" here are the actual inputs shown per
@@ -635,7 +635,7 @@ async function laravelFetch(
 function laravelUploadXHR(
   path: string,
   formData: FormData,
-  onProgress?: (pct: number) => void,
+  onProgress?: (pct: number, loaded: number, total: number) => void,
 ): Promise<{ ok: boolean; status: number; data: any }> {
   return new Promise((resolve, reject) => {
     (async () => {
@@ -643,15 +643,14 @@ function laravelUploadXHR(
       const token = await getAuthToken();
 
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", url, true); // always POST + _method=PUT spoof, same as laravelFetch
+      xhr.open("POST", url, true);
       xhr.setRequestHeader("Accept", "application/json");
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      // Walang Content-Type header dito — kailangan browser mismo mag-set
-      // ng multipart boundary, kapareho ng ginagawa mo sa fetch().
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct, e.loaded, e.total); // ← byte info dito
         }
       };
 
@@ -703,27 +702,29 @@ async function uploadImageBatches(
 async function uploadVideoBatches(
   propertyId: number,
   files: File[],
-  onProgress: (pct: number) => void,
+  onProgress: (pct: number, loadedBytes: number, totalBytes: number) => void,
 ): Promise<void> {
+  const totalBytesAll = files.reduce((sum, f) => sum + f.size, 0);
+  let bytesDoneBefore = 0; // bytes ng mga video na tapos na
+
   for (let i = 0; i < files.length; i++) {
     const fd = new FormData();
     fd.append("videos[]", files[i]);
     fd.append("_method", "PUT");
 
-    const { ok, data } = await laravelUploadXHR(
+    await laravelUploadXHR(
       `api/developers-properties/${propertyId}`,
       fd,
-      (filePct) => {
-        // overall % across ALL videos, hindi lang isa
-        const overall = ((i + filePct / 100) / files.length) * 100;
-        onProgress(Math.round(overall));
+      (_filePct, loaded) => {
+        const overallLoaded = bytesDoneBefore + loaded;
+        const overallPct = Math.round((overallLoaded / totalBytesAll) * 100);
+        onProgress(overallPct, overallLoaded, totalBytesAll);
       },
     );
 
-    if (!ok) console.warn("Video upload warning:", data?.message ?? data);
+    bytesDoneBefore += files[i].size;
   }
 }
-
 // Uploads unit-offering photos grouped by field/category, one request per
 // category (batched at MAX_IMAGES_PER_BATCH), directly to Laravel — mirrors
 // the "/unit-offer-images" endpoint used on the agent/admin properties page.
@@ -1736,6 +1737,8 @@ function PropertyFormModal({
       // ── Financing Options (multi-select, Sale listings only) ──
       // Sent as a repeated array field, same convention as amenities[].
       // Only relevant to "For Sale" properties — never sent for rentals.
+      fd.append("financing_option_touched", "1");
+
       if (isSale) {
         selectedFinancingOptions.forEach((f) =>
           fd.append("financing_option[]", f),
@@ -1895,11 +1898,14 @@ function PropertyFormModal({
 
       // ── Step 6: Upload videos one-by-one directly to Laravel ──
       if (videoFiles.length > 0) {
-        setUploadStage(`Uploading ${videoFiles.length} video(s)…`);
+        const totalVideoBytes = videoFiles.reduce((s, v) => s + v.file.size, 0);
         await uploadVideoBatches(
           savedId,
           videoFiles.map((v) => v.file),
-          (pct) => {
+          (pct, loadedBytes) => {
+            setUploadStage(
+              `Uploading video(s)… ${formatFileSize(loadedBytes)} / ${formatFileSize(totalVideoBytes)}`,
+            );
             setUploadProgress(75 + Math.round(pct * 0.22)); // 75–97%
           },
         );
@@ -2275,10 +2281,11 @@ function PropertyFormModal({
                 </div>
 
                 {/* Gallery */}
+                {/* Gallery */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className={`${lbl} mb-0`}>
-                      Gallery ({totalGalleryCount}/10)
+                      Gallery ({totalGalleryCount}/{MAX_GALLERY_IMAGES})
                     </label>
                     {galleryFiles.length > 0 && (
                       <button
@@ -2338,7 +2345,7 @@ function PropertyFormModal({
                     </div>
                   )}
 
-                  {totalGalleryCount < 10 && (
+                  {totalGalleryCount < MAX_GALLERY_IMAGES && (
                     <div
                       onClick={() => galleryRef.current?.click()}
                       className="w-full p-4 rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-400 cursor-pointer transition-colors bg-white text-center group"
@@ -2365,7 +2372,8 @@ function PropertyFormModal({
                       const { valid, errors } = validateImageFiles(files);
                       if (errors.length > 0)
                         setError(`⚠️ File size issues:\n${errors.join("\n")}`);
-                      const remaining = 10 - existingImages.length;
+                      const remaining =
+                        MAX_GALLERY_IMAGES - existingImages.length;
                       setGalleryFiles((prev) =>
                         [...prev, ...valid].slice(0, remaining),
                       );
