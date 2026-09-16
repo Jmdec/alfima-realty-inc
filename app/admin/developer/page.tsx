@@ -46,20 +46,56 @@ const getFullImageUrl = (url: unknown): string | null => {
   return `${LARAVEL_API}/${clean.replace(/^\//, "")}`;
 };
 
-// Helper: get auth token from cookie
-function getAuthToken(): string | null {
-  if (typeof document === "undefined") return null;
-  return (
-    document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("auth_token="))
-      ?.split("=")[1] ?? null
-  );
+// ─── Auth token helper ────────────────────────────────────────────────────
+// auth_token is an httpOnly cookie (set by /api/auth/login), which means
+// client-side JS can NEVER read it via document.cookie — that's the whole
+// point of httpOnly. The old getAuthToken() that parsed document.cookie
+// always returned null, so every direct-to-Laravel call (create, update,
+// delete, unit-offer-image upload) went out with no Authorization header
+// and got rejected as unauthenticated. The list/view calls "worked" only
+// because they go through the Next.js proxy route, which reads the cookie
+// server-side.
+//
+// Fix: fetch the token from a small server route (/api/auth/token) that
+// reads the httpOnly cookie server-side and hands the raw value back to
+// client code that legitimately needs it for direct Bearer-auth calls.
+// Cached in memory so we don't round-trip on every request.
+let cachedToken: string | null | undefined; // undefined = not fetched yet
+
+async function getAuthToken(): Promise<string | null> {
+  if (cachedToken !== undefined) return cachedToken;
+  try {
+    const res = await fetch("/api/auth/token", { credentials: "include" });
+    if (!res.ok) {
+      cachedToken = null;
+      return null;
+    }
+    const data: unknown = await res.json();
+    const token: string | null =
+      data &&
+      typeof data === "object" &&
+      typeof (data as any).token === "string"
+        ? (data as any).token
+        : null;
+    cachedToken = token;
+    return token;
+  } catch {
+    cachedToken = null;
+    return null;
+  }
+}
+
+// Call this right after login/logout so a stale or missing token from
+// before auth state changed is never reused.
+export function resetAuthTokenCache(): void {
+  cachedToken = undefined;
 }
 
 // Helper: build headers with optional auth
-function authHeaders(extra: Record<string, string> = {}): HeadersInit {
-  const token = getAuthToken();
+async function authHeaders(
+  extra: Record<string, string> = {},
+): Promise<HeadersInit> {
+  const token = await getAuthToken();
   return {
     Accept: "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -370,9 +406,9 @@ const ACCEPT_ALL_IMAGES =
   "image/*,.avif,.heic,.heif,.jxl,.tiff,.tif,.bmp,.ico,.svg,.webp";
 
 // File size limits
-const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50 MB per image
-const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB per video (direct to Laravel)
-const MAX_IMAGES_PER_BATCH = 5; // images per multipart batch
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 20 MB per image
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 per video (direct to Laravel)
+const MAX_IMAGES_PER_BATCH = 15; // images per multipart batch
 
 // ─── Unit Offering Photos: one upload slot per field, grouped by property type
 // Mirrors AdminPropertiesPage's UNIT_PHOTO_CATEGORIES (Bedrooms / Bathrooms /
@@ -585,7 +621,7 @@ async function laravelFetch(
   const url = `${LARAVEL_API}/${path.replace(/^\//, "")}`;
   const res = await fetch(url, {
     method,
-    headers: authHeaders(), // no Content-Type — let browser set multipart boundary
+    headers: await authHeaders(), // no Content-Type — let browser set multipart boundary
     body: body ?? undefined,
     credentials: "include",
   });
@@ -596,7 +632,49 @@ async function laravelFetch(
     : await res.text();
   return { ok: res.ok, status: res.status, data };
 }
+function laravelUploadXHR(
+  path: string,
+  formData: FormData,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      const url = `${LARAVEL_API}/${path.replace(/^\//, "")}`;
+      const token = await getAuthToken();
 
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true); // always POST + _method=PUT spoof, same as laravelFetch
+      xhr.setRequestHeader("Accept", "application/json");
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      // Walang Content-Type header dito — kailangan browser mismo mag-set
+      // ng multipart boundary, kapareho ng ginagawa mo sa fetch().
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        const ct = xhr.getResponseHeader("content-type") ?? "";
+        let data: any = xhr.responseText;
+        if (ct.includes("application/json")) {
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch {}
+        }
+        resolve({
+          ok: xhr.status >= 200 && xhr.status < 300,
+          status: xhr.status,
+          data,
+        });
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(formData);
+    })();
+  });
+}
 // Uploads images in batches of MAX_IMAGES_PER_BATCH directly to Laravel
 async function uploadImageBatches(
   propertyId: number,
@@ -631,13 +709,18 @@ async function uploadVideoBatches(
     const fd = new FormData();
     fd.append("videos[]", files[i]);
     fd.append("_method", "PUT");
-    const { ok, data } = await laravelFetch(
+
+    const { ok, data } = await laravelUploadXHR(
       `api/developers-properties/${propertyId}`,
-      "POST",
       fd,
+      (filePct) => {
+        // overall % across ALL videos, hindi lang isa
+        const overall = ((i + filePct / 100) / files.length) * 100;
+        onProgress(Math.round(overall));
+      },
     );
+
     if (!ok) console.warn("Video upload warning:", data?.message ?? data);
-    onProgress(Math.round(((i + 1) / files.length) * 100));
   }
 }
 
@@ -1167,8 +1250,7 @@ function PropertyFormModal({
   const [developerOptions, setDeveloperOptions] = useState<
     DeveloperPartnerOption[]
   >([]);
-  const [loadingDeveloperOptions, setLoadingDeveloperOptions] =
-    useState(true);
+  const [loadingDeveloperOptions, setLoadingDeveloperOptions] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -1241,6 +1323,10 @@ function PropertyFormModal({
   // and passed that FULL URL into laravelFetch(), which itself prepends
   // LARAVEL_API — doubling the host/prefix and breaking the request. Only
   // pass a bare path (no LARAVEL_API prefix) here.
+  //
+  // Also FIXED: headers now come from the async authHeaders() (awaited),
+  // since the DELETE call below needs a real Authorization header the same
+  // way every other direct-to-Laravel call does.
   const removeExistingUnitPhoto = async (
     photoId: string | number,
     category: string,
@@ -1287,7 +1373,7 @@ function PropertyFormModal({
         `${LARAVEL_API}/api/developers-properties/${initial.id}/unit-offer-images`,
         {
           method: "DELETE",
-          headers: authHeaders({ "Content-Type": "application/json" }),
+          headers: await authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ category, path: resolvedPath }),
           credentials: "include",
         },
@@ -1318,6 +1404,9 @@ function PropertyFormModal({
   // show() does. Without this, existing unit-offer photos silently never
   // appear in the edit form even though the DB has them. This mirrors the
   // equivalent effect already used on AdminPropertiesPage.
+  //
+  // Also FIXED: headers now come from the async authHeaders() (awaited) —
+  // this request goes directly to Laravel, so it needs a real Bearer token.
   useEffect(() => {
     if (mode !== "edit" || !initial?.id) return;
 
@@ -1328,7 +1417,7 @@ function PropertyFormModal({
       try {
         const res = await fetch(
           `${LARAVEL_API}/api/developers-properties/${initial.id}`,
-          { headers: authHeaders() },
+          { headers: await authHeaders() },
         );
         if (!res.ok) {
           throw new Error(`Failed to load property details (${res.status})`);
@@ -1425,18 +1514,24 @@ function PropertyFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initial?.id]);
 
+  // ── FIX: was a .then() chain calling the old sync authHeaders(); now an
+  // async IIFE so `await authHeaders()` can be used for the direct Laravel
+  // call, the same fix as everywhere else in this file. ──
   useEffect(() => {
     let cancelled = false;
     setLoadingTags(true);
 
-    // Reuses the same list endpoint the table already calls (direct to
-    // Laravel), just asking for a big page so we can scan every tag.
-    fetch(`${LARAVEL_API}/api/developers-properties?per_page=1000`, {
-      headers: authHeaders(),
-    })
-      .then((res) => (res.ok ? res.json() : { data: [] }))
-      .then((json) => {
+    (async () => {
+      try {
+        // Reuses the same list endpoint the table already calls (direct to
+        // Laravel), just asking for a big page so we can scan every tag.
+        const res = await fetch(
+          `${LARAVEL_API}/api/developers-properties?per_page=1000`,
+          { headers: await authHeaders() },
+        );
+        const json = res.ok ? await res.json() : { data: [] };
         if (cancelled) return;
+
         const list: DeveloperProperty[] = Array.isArray(json?.data)
           ? json.data
           : Array.isArray(json)
@@ -1459,11 +1554,12 @@ function PropertyFormModal({
         }
 
         setAvailableTags(Array.from(seen.values()));
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to load existing tags:", err);
-      })
-      .finally(() => !cancelled && setLoadingTags(false));
+      } finally {
+        if (!cancelled) setLoadingTags(false);
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -1486,22 +1582,24 @@ function PropertyFormModal({
 
   // Deletes a tag label from every developer property that has it (backend),
   // not just from this form. Mirrors the pattern used on AdminPropertiesPage.
+  //
+  // FIX: previously duplicated its own token-fetch via /api/auth/token and
+  // process.env.NEXT_PUBLIC_API_URL directly. Simplified to reuse the same
+  // shared getAuthToken()/LARAVEL_API helpers as everything else in this
+  // file, so there's one source of truth for how the token is obtained.
   const deleteTagEverywhere = async (tag: PropertyTag) => {
     if (!confirm(`Delete "${tag.label}" from all developer properties?`))
       return;
     try {
-      const tokenRes = await fetch("/api/auth/token");
-      const tokenData = await tokenRes.json();
-      const token = tokenData.token;
+      const token = await getAuthToken();
 
       if (!token) {
         setError("Authentication required. Please log in again.");
         return;
       }
 
-      const laravelBase = process.env.NEXT_PUBLIC_API_URL;
       const res = await fetch(
-        `${laravelBase}/api/developers-properties/tags?label=${encodeURIComponent(tag.label)}`,
+        `${LARAVEL_API}/api/developers-properties/tags?label=${encodeURIComponent(tag.label)}`,
         {
           method: "DELETE",
           headers: {
@@ -1711,6 +1809,10 @@ function PropertyFormModal({
         if (status === 413) {
           setError(
             "❌ Payload too large (413). The thumbnail may be too big — please compress it below 2 MB.",
+          );
+        } else if (status === 401) {
+          setError(
+            "❌ You're not logged in (401 Unauthenticated). Please log in again and retry.",
           );
         } else {
           setError(
@@ -2453,8 +2555,7 @@ function PropertyFormModal({
                   </select>
                   <p className="text-xs text-slate-400 mt-1">
                     Pulled from Partners marked with the &quot;Developer&quot;
-                    category. Add new developers from the Partners admin
-                    page.
+                    category. Add new developers from the Partners admin page.
                   </p>
                 </div>
 
@@ -3056,6 +3157,10 @@ function ViewModal({
   // ── FIX: same "list row vs full details" gap as PropertyFormModal — the
   // row passed in from the table (index()) doesn't decode unit_offer_images.
   // Re-fetch the full property (show()) so the Units tab actually has data.
+  //
+  // Also FIXED: this was a .then() chain calling the old sync authHeaders();
+  // now an async IIFE so `await authHeaders()` can be used, same as
+  // everywhere else in this file.
   const [property, setProperty] = useState<DeveloperProperty>(initialProperty);
   const [loadingFull, setLoadingFull] = useState(true);
 
@@ -3063,18 +3168,21 @@ function ViewModal({
     let cancelled = false;
     setLoadingFull(true);
 
-    fetch(`${LARAVEL_API}/api/developers-properties/${initialProperty.id}`, {
-      headers: authHeaders(),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((full: any) => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `${LARAVEL_API}/api/developers-properties/${initialProperty.id}`,
+          { headers: await authHeaders() },
+        );
+        const full: any = res.ok ? await res.json() : null;
         if (cancelled || !full) return;
         setProperty((prev) => ({ ...prev, ...full }));
-      })
-      .catch((err) =>
-        console.error("Failed to load full developer property:", err),
-      )
-      .finally(() => !cancelled && setLoadingFull(false));
+      } catch (err) {
+        console.error("Failed to load full developer property:", err);
+      } finally {
+        if (!cancelled) setLoadingFull(false);
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -3877,7 +3985,7 @@ export default function AdminDevelopersPage() {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/developers-properties?${params}`,
         {
-          headers: authHeaders(),
+          headers: await authHeaders(), // FIX: await added (authHeaders is now async)
         },
       );
       const data = await res.json();
