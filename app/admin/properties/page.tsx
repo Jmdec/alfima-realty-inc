@@ -165,9 +165,9 @@ const ACCEPT_ALL_IMAGES =
   "image/*,.avif,.heic,.heif,.jxl,.tiff,.tif,.bmp,.ico,.svg,.webp";
 
 // File size limits (in bytes)
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB per image
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB for video
-const MAX_TOTAL_UPLOAD_SIZE = 120 * 1024 * 1024; // 120MB total
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB per image
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB for video
+const MAX_TOTAL_UPLOAD_SIZE = 520 * 1024 * 1024; // 520MB total
 
 const AMENITY_OPTIONS = [
   "Swimming Pool",
