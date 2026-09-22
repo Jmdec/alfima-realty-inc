@@ -1239,41 +1239,6 @@ export function Chatbot() {
 
   return (
     <div className="fixed bottom-8 right-8 z-50">
-      {policyContent && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-neutral-950 text-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <h3 className="text-base font-bold text-white">
-                {policyContent.title}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPolicyModal(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                aria-label="Close policy modal"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="max-h-[70vh] overflow-y-auto px-5 py-4 text-sm leading-6 text-white/75">
-              {policyContent.body.map((paragraph, index) => (
-                <p
-                  key={`${policyContent.title}-${index}`}
-                  className="mb-3 last:mb-0"
-                  style={{ whiteSpace: "pre-line" }}
-                >
-                  {paragraph}
-                </p>
-              ))}
-              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-600/5 p-3 text-xs text-red-200">
-                For questions, contact us at sales@alfimarealtyinc.com or call
-                09171742419.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {isOpen && (
         <div
           className="absolute bottom-20 right-0 w-80 sm:w-96 flex flex-col shadow-2xl rounded-3xl overflow-hidden border border-white/10"
@@ -1433,21 +1398,19 @@ export function Chatbot() {
                     />
                     <span className="text-white/40 text-[11px] leading-relaxed">
                       I acknowledge that I have read and understood the{" "}
-                      <button
-                        type="button"
-                        onClick={() => setPolicyModal("privacy")}
+                      <a
+                        href="/privacy-policy"
                         className="text-red-400 underline hover:text-red-300"
                       >
                         Privacy Policy
-                      </button>
+                      </a>
                       {" "}and{" "}
-                      <button
-                        type="button"
-                        onClick={() => setPolicyModal("notice")}
+                      <a
+                        href="/privacy-notice"
                         className="text-red-400 underline hover:text-red-300"
                       >
                         Privacy Notice
-                      </button>
+                      </a>
                       {" "}of ALFIMA Realty Inc.
                     </span>
                   </label>
