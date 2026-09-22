@@ -429,43 +429,50 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <Reveal dir="left">
-              <div className="relative">
+              <div className="relative w-full">
                 <div
                   className="w-full rounded-3xl p-5 sm:p-6 md:p-8 lg:p-10 border-2 border-red-400/40 hover:border-red-400/60 transition-all duration-500 shadow-lg hover:shadow-xl"
                   style={{
                     background: "rgba(61,24,24,0.5)",
                     backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
                   }}
                 >
-                  {/* Accent line */}
+                  {/* Accent Line */}
                   <div
-                    className="h-1 w-16 sm:w-20 rounded-full mb-6"
+                    className="h-1 w-14 sm:w-16 md:w-20 rounded-full mb-5 sm:mb-6"
                     style={{
                       background: "linear-gradient(90deg,#e74c3c,#ff8080)",
                     }}
                   />
 
                   {/* Image */}
-                  <div className="w-full max-w-[500px] h-[270px] md:h-[300px] mx-auto overflow-hidden flex items-center justify-center">
+                  <div className="w-full h-[200px] sm:h-[240px] md:h-[280px] lg:h-[360px] mb-6 rounded-2xl overflow-hidden flex items-center justify-center">
                     <img
-                      src="/photo_2026-09-11_15-00-23.png"
-                      alt="Alfima"
-                      className="w-full h-full object-contain"
+                      src="/photo_2026-09-22.png"
+                      alt="ALFIMA Realty Inc."
+                      className="w-full h-full object-contain transition-transform duration-500 hover:scale-[1.02]"
                     />
                   </div>
 
                   {/* Description */}
-                  <div className="text-base sm:text-lg text-white mb-5 leading-relaxed">
-                    Welcome to ALFIMA Realty Inc. a real estate brokerage founded in
-                    2025 by{" "}
-                    <span className="font-bold italic">
-                      Engr. Albert Belino Macalincag
-                    </span>
-                    , a licensed Real Estate Broker.
+                  <div className="text-sm sm:text-base md:text-lg text-white leading-relaxed mb-6">
+                    <p>
+                      Welcome to <strong>ALFIMA Realty Inc.</strong>, a real estate
+                      brokerage founded in 2025 by{" "}
+                      <span className="font-bold italic">
+                        Engr. Albert Belino Macalincag
+                      </span>
+                      , CE, REB no. 0022020, and his wife,{" "}
+                      <span className="font-bold italic">
+                        Filipina Sabile-Macalincag
+                      </span>
+                      , with 20 years of experience in sales.
+                    </p>
                   </div>
 
                   {/* Badges */}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 sm:gap-3">
                     {[
                       "PRC Licensed",
                       "HLURB Accredited",
@@ -485,8 +492,10 @@ export default function AboutPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Decorative Glow */}
                 <div
-                  className="absolute -bottom-4 -right-4 w-40 h-40 rounded-full -z-10"
+                  className="absolute -bottom-6 -right-6 sm:-bottom-8 sm:-right-8 w-32 h-32 sm:w-40 sm:h-40 rounded-full -z-10 pointer-events-none"
                   style={{
                     background:
                       "radial-gradient(circle,rgba(200,40,40,0.08) 0%,transparent 70%)",
