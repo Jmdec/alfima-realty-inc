@@ -54,7 +54,7 @@ const NAV_ITEMS = [
     section: "Content",
     items: [
       { label: "Contacts", href: "/admin/contacts", icon: Phone },
-      { label: "News&Events", href: "/admin/news&events", icon: Newspaper },
+      { label: "News & Events", href: "/admin/news&events", icon: Newspaper },
       { label: "Viewing Requests", href: "/admin/viewing-request", icon: Eye },
       { label: "Inquiries", href: "/admin/inquiries", icon: HelpCircle },
       {
