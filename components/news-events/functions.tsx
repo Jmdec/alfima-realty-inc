@@ -34,12 +34,16 @@ export const NEWS_EVENTS_API = `${API_BASE}/api/news-and-events`;
 
 // Image in News & Event Page
 // Image URL helper
-export const IMAGE_BASE = process.env.NEXT_PUBLIC_IMAGE_URL ?? "";
+export const IMAGE_BASE = (
+  process.env.NEXT_PUBLIC_IMAGE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  ""
+).replace(/\/+$/, "");
 
 export function imgUrl(src?: string) {
   if (!src) return "/placeholder-property.jpg";
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
-  return `${IMAGE_BASE}/${src}`;
+  return `${IMAGE_BASE}/${src.replace(/^\/+/, "")}`;
 }
 
 // Image in Home Page

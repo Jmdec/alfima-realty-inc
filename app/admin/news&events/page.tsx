@@ -19,7 +19,11 @@ import {
   Clock,
 } from "lucide-react";
 
-const IMAGE_BASE = process.env.NEXT_PUBLIC_IMAGE_URL ?? "";
+const IMAGE_BASE = (
+  process.env.NEXT_PUBLIC_IMAGE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  ""
+).replace(/\/+$/, "");
 
 // ─── Adjust these to match your actual Laravel routes ───────────────────────
 const NEWS_API = "/api/admin/news-events/articles";
@@ -201,7 +205,7 @@ async function saveItem<T extends { id?: number; _imageFile?: File | null }>(
 function imgUrl(src?: string | null) {
   if (!src) return null;
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
-  return `${IMAGE_BASE}/${src}`;
+  return `${IMAGE_BASE}/${src.replace(/^\/+/, "")}`;
 }
 
 // Holds the picked file + a preview URL for both modals.
